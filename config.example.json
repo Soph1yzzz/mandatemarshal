@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "host": "codex",
+  "roles": {
+    "parent": { "mode": "inherit" },
+    "routineImplementer": {
+      "nativeRole": "routine-implementer",
+      "model": "gpt-5.6-luna",
+      "effort": "max"
+    },
+    "complexImplementer": {
+      "nativeRole": "complex-implementer",
+      "model": "gpt-5.6-terra",
+      "effort": "high"
+    },
+    "freshReviewer": {
+      "nativeRole": "fresh-reviewer",
+      "model": "gpt-5.6-sol",
+      "effort": "high"
+    }
+  },
+  "review": {
+    "mandatory": true,
+    "freshContextRequired": true,
+    "requestedReadOnly": true
+  },
+  "evidence": {
+    "storage": "external-user-data",
+    "captureGitState": true,
+    "captureCommands": true,
+    "forbiddenArtifacts": [
+      {
+        "id": "python-bytecode-forbidden",
+        "patterns": ["**/__pycache__/**", "**/*.pyc", "**/*.pyo"],
+        "severity": "blocking",
+        "enabled": false
+      }
+    ],
+    "commandPolicies": [
+      {
+        "id": "python-no-bytecode",
+        "command": "python",
+        "requiredFlags": ["-B"],
+        "enabled": false
+      }
+    ]
+  },
+  "ownerContracts": [],
+  "routing": {
+    "defaultLane": "routine-implementer",
+    "complexityTriggers": [
+      "architecture-ambiguity",
+      "broad-refactor-or-migration",
+      "concurrency",
+      "security-sensitive",
+      "difficult-debugging",
+      "non-trivial-algorithm",
+      "public-interface-risk",
+      "cross-subsystem-context",
+      "high-context",
+      "wide-blast-radius",
+      "routine-worker-blocked"
+    ],
+    "allowSilentFallback": false
+  }
+}

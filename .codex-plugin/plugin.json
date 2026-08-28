@@ -1,0 +1,27 @@
+{
+  "name": "mandatemarshal",
+  "version": "0.1.0",
+  "description": "Authority-aware orchestration for coding agents: bounded autonomy, explicit decision ownership, deterministic evidence, and mandatory fresh QA.",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "orchestration",
+    "coding-agents",
+    "authority",
+    "qa",
+    "multi-agent"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "MandateMarshal",
+    "shortDescription": "Autonomy without unintended authority",
+    "longDescription": "Orchestrate coding agents with explicit Owner, Parent, Implementer, and Fresh Reviewer boundaries; deterministic execution evidence; and no silent model or policy fallback.",
+    "developerName": "MandateMarshal contributors",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Use MandateMarshal to implement this without crossing owner-level authority boundaries.",
+      "Use MandateMarshal to route this task and require fresh QA before completion."
+    ]
+  }
+}

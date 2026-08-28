@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mandatemarshal.dev/schemas/project-activation.schema.json",
+  "title": "MandateMarshal Project Activation Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "projectPath",
+    "projectName",
+    "enabled",
+    "activationSource",
+    "activatedAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "projectId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "projectPath": { "type": "string", "minLength": 1 },
+    "projectName": { "type": "string" },
+    "enabled": { "type": "boolean" },
+    "activationSource": { "const": "explicit-user" },
+    "activatedAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "disabledAt": { "type": "string", "format": "date-time" }
+  }
+}

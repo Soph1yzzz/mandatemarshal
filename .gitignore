@@ -1,0 +1,31 @@
+# Dependencies / build output
+node_modules/
+dist/
+coverage/
+*.log
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# MandateMarshal / Codex Security local run artifacts
+.mandatemarshal/
+.authorityflow/
+.codex-security/
+
+# Python artifacts (scanner can still detect them before cleanup when policy enables it)
+__pycache__/
+*.pyc
+*.pyo
+
+# OS/editor/local shell noise
+.DS_Store
+Thumbs.db
+/NUL
+.vscode/
+.idea/
+
+# Local design provenance used to create v0.1; not part of the public package by default
+/authorityflow-v0.1-spec-r2.zip
+/PROJECT_SOURCE_MASTER.md

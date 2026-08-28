@@ -1,0 +1,53 @@
+{
+  "name": "mandatemarshal",
+  "version": "0.1.0",
+  "description": "Authority-aware orchestration for coding agents.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "mandatemarshal": "./bin/mandatemarshal.ts"
+  },
+  "engines": {
+    "bun": ">=1.3.0",
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "check": "bun run typecheck && bun test",
+    "validate:config": "bun tools/validate-config.ts",
+    "scan:artifacts": "bun tools/scan-artifacts.ts",
+    "capture:state": "bun tools/capture-state.ts",
+    "activation": "bun tools/activation.ts",
+    "install:codex-agents": "bun tools/install-codex-agents.ts",
+    "smoke:codex": "bun tools/smoke-codex.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./core": "./src/core/index.ts",
+    "./adapters/codex": "./src/adapters/codex/adapter.ts"
+  },
+  "files": [
+    ".codex-plugin",
+    "bin",
+    "src",
+    "schemas",
+    "prompts",
+    "skills",
+    "templates",
+    "tools",
+    "docs",
+    "config.example.json",
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "README.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "devDependencies": {
+    "@types/bun": "^1.3.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.2"
+  }
+}

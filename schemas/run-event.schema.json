@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mandatemarshal/run-event.schema.json",
+  "title": "MandateMarshal Run Event",
+  "type": "object",
+  "required": ["schemaVersion", "type", "at", "runId", "state"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "type": { "type": "string", "minLength": 1 },
+    "at": { "type": "string", "minLength": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "state": {
+      "enum": ["IDLE", "INTAKE", "CONTRACT_CHECK", "PLANNING", "READY_TO_DELEGATE", "IMPLEMENTING", "PARENT_VERIFYING", "FRESH_REVIEWING", "CORRECTION_REQUIRED", "AUTHORITY_CONFLICT", "USER_DECISION_PENDING", "ACCEPTING", "COMPLETED", "BLOCKED", "ABORTED"]
+    },
+    "payload": {}
+  },
+  "additionalProperties": false
+}

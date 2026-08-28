@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mandatemarshal/escalation.schema.json",
+  "title": "MandateMarshal Escalation Packet",
+  "type": "object",
+  "required": ["schemaVersion", "source", "conflict", "investigation", "options", "decisionRequired", "heldAction"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "source": { "enum": ["parent", "reviewer"] },
+    "conflict": {
+      "type": "object",
+      "required": ["existingRule", "newRequirement", "whyConflict"],
+      "properties": {
+        "existingRule": { "type": "string" },
+        "newRequirement": { "type": "string" },
+        "whyConflict": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "investigation": {
+      "type": "object",
+      "required": ["checked", "simultaneouslySatisfiable"],
+      "properties": {
+        "checked": { "type": "array", "items": { "type": "string" } },
+        "simultaneouslySatisfiable": { "enum": ["yes", "no", "uncertain"] }
+      },
+      "additionalProperties": false
+    },
+    "options": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description", "preservesOwnerContract", "reversibility"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "preservesOwnerContract": { "type": "boolean" },
+          "benefits": { "type": "array", "items": { "type": "string" } },
+          "risks": { "type": "array", "items": { "type": "string" } },
+          "reversibility": { "enum": ["reversible", "partial", "irreversible"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "recommendation": { "type": "string" },
+    "decisionRequired": { "type": "string", "minLength": 1 },
+    "heldAction": { "type": "string", "minLength": 1 },
+    "safeWorkMayContinue": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": false
+}
