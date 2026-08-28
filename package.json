@@ -1,7 +1,37 @@
 {
   "name": "mandatemarshal",
   "version": "0.1.0",
-  "description": "Authority-aware orchestration for coding agents.",
+  "description": "Authority-aware orchestration for Codex and coding agents with bounded autonomy, fresh review, deterministic evidence, and no silent fallback.",
+  "keywords": [
+    "agent-skills",
+    "agent-orchestration",
+    "agent-governance",
+    "agent-safety",
+    "ai-agents",
+    "coding-agents",
+    "autonomous-agents",
+    "multi-agent-systems",
+    "codex",
+    "codex-cli",
+    "openai-codex",
+    "developer-tools",
+    "ai-coding",
+    "code-review",
+    "llm-agents",
+    "agentic-ai",
+    "software-engineering",
+    "typescript",
+    "bun",
+    "orchestration"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Soph1yzzz/mandatemarshal.git"
+  },
+  "homepage": "https://github.com/Soph1yzzz/mandatemarshal#readme",
+  "bugs": {
+    "url": "https://github.com/Soph1yzzz/mandatemarshal/issues"
+  },
   "type": "module",
   "license": "MIT",
   "bin": {

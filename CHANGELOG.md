@@ -2,6 +2,13 @@
 
 All notable changes to MandateMarshal are documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Reworked the README opening into a GitHub landing layer with a concise value comparison, quick start, status badges, and an inline authority/review flow.
+- Added search-oriented package metadata and keywords for Codex, coding-agent orchestration, agent governance/safety, and developer-tool discovery.
+
 ## [0.1.0] - 2026-08-28
 
 ### Added

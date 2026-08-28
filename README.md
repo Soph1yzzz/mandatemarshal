@@ -1,10 +1,83 @@
+<div align="center">
+
 # MandateMarshal
 
-> **Give coding agents autonomy without accidentally giving them authority.**
+### Give coding agents autonomy without accidentally giving them authority.
 
-MandateMarshal is an authority-aware orchestration layer for coding agents. It separates **who may execute** from **who may decide**, combines fresh-context QA with deterministic execution evidence, and refuses silent model/role/capability fallback.
+**Authority-aware orchestration for Codex and coding agents.**<br>
+Bounded implementation. Fresh read-only review. Deterministic evidence. No silent fallback.
 
-**Status:** v0.1.0. **Codex supported** (real-host validated), provider-neutral core, Claude Code experimental portability seam.
+[![CI](https://github.com/Soph1yzzz/mandatemarshal/actions/workflows/ci.yml/badge.svg)](https://github.com/Soph1yzzz/mandatemarshal/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Soph1yzzz/mandatemarshal?display_name=tag)](https://github.com/Soph1yzzz/mandatemarshal/releases/latest)
+[![License](https://img.shields.io/github/license/Soph1yzzz/mandatemarshal)](LICENSE)
+[![Codex](https://img.shields.io/badge/Codex-supported-111827)](docs/CODEX_SETUP.md)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)](tsconfig.json)
+
+[Quick start](#quick-start) · [Why it exists](#why-mandatemarshal-exists) · [Codex setup](docs/CODEX_SETUP.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md)
+
+</div>
+
+MandateMarshal separates **who may execute** from **who may decide**. Give coding agents room to work inside settled boundaries without letting implementation uncertainty silently become project policy.
+
+## In 30 seconds
+
+| Without MandateMarshal | With MandateMarshal |
+| --- | --- |
+| The agent asks you about every local implementation choice | Parent owns architecture and decomposition inside your Owner Contracts |
+| Uncertainty silently turns into a new permanent rule | `DETECT -> INVESTIGATE -> PROPOSE -> HOLD -> ESCALATE` |
+| A reviewer drifts into becoming a second architect | Fresh Reviewer is QA-only: `PASS | FIX | ESCALATE` |
+| A requested model/role is unavailable and something else runs | Exact route or loud capability failure; no silent fallback |
+| Review passes, then the candidate changes | The old `PASS` is invalid because review is bound to candidate identity |
+| A child claims verification happened | Deterministic evidence captures commands, repository state, paths, and artifacts |
+
+The core rule is simple:
+
+> **Autonomy does not imply authority.**
+
+## Quick start
+
+### Verify from source
+
+```bash
+git clone https://github.com/Soph1yzzz/mandatemarshal.git
+cd mandatemarshal
+bun install --frozen-lockfile
+bun run check
+```
+
+### Prepare a Codex project
+
+Install the reviewed agent profiles and explicitly activate the target project:
+
+```bash
+bun run install:codex-agents -- /path/to/your-project/.codex/agents
+bun run activation -- enable /path/to/your-project
+```
+
+The repository also ships a Codex plugin manifest and orchestration Skill. Once that bundled Skill is loaded in a new Codex session, say:
+
+```text
+Use MandateMarshal for this project.
+```
+
+The first use is explicit. After activation, MandateMarshal can continue for later work in the same project without making you repeat its name on every request. See [Codex setup](docs/CODEX_SETUP.md) for plugin/Skill packaging, exact model mappings, and the host-discovery caveat.
+
+## How it works
+
+```mermaid
+flowchart LR
+    O["User / Owner Contracts"] --> P["Parent Orchestrator"]
+    P --> R["Routine Implementer<br/>Luna / Max"]
+    P --> C["Complex Implementer<br/>Terra / High"]
+    R --> V["Parent Verification"]
+    C --> V
+    V --> F["Fresh Reviewer<br/>Sol / High · read-only"]
+    F -->|PASS| A["Accept exact candidate"]
+    F -->|FIX| P
+    F -->|ESCALATE| O
+```
+
+The model names above are the **Codex v0.1 adapter defaults**, not assumptions in the provider-neutral core. A candidate that changes after review loses its `PASS` and must be reviewed again.
 
 ## Why MandateMarshal exists
 
@@ -28,9 +101,7 @@ Parent Orchestrator ----> Implementer
     +----> Fresh Reviewer (read-only QA)
 ```
 
-The core rule is:
-
-> **Autonomy does not imply authority.**
+That hierarchy is the concrete expression of the rule above: implementation authority stays bounded by Owner authority.
 
 ## Role model
 
