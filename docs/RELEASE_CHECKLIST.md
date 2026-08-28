@@ -69,8 +69,9 @@ Also review the intended Git/publication set for secrets, local absolute paths, 
 - [x] `SECURITY.md` present.
 - [x] README and setup documentation present.
 - [x] Git repository initialized.
-- [ ] Clean initial release commit prepared.
-- [ ] GitHub repository created.
-- [ ] v0.1.0 tag/release published.
+- [x] Clean initial release commit prepared and published from `main` at `845c9067b9efc9bbec67a262500adb0583377ed0`.
+- [x] Public GitHub repository created as `Soph1yzzz/mandatemarshal`.
+- [x] Annotated `v0.1.0` tag and GitHub Release published; the tag peels to the audited release commit above.
+- [x] GitHub Actions CI passed on both `ubuntu-latest` and `windows-latest` for the release commit.
 
 Publication must not proceed until the mandatory bounded v0.1 security gate above is green. Full Codex Security is optional under D-024 and may be added for materially larger future attack surfaces.
