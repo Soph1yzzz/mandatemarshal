@@ -15,6 +15,8 @@ Bounded implementation. Fresh read-only review. Deterministic evidence. No silen
 
 [Quick start](#quick-start) · [Why it exists](#why-mandatemarshal-exists) · [Codex setup](docs/CODEX_SETUP.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md)
 
+<img src="./assets/social-preview.svg" alt="MandateMarshal social preview" width="100%" />
+
 </div>
 
 MandateMarshal separates **who may execute** from **who may decide**. Give coding agents room to work inside settled boundaries without letting implementation uncertainty silently become project policy.
