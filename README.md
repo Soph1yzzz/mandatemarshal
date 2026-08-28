@@ -15,7 +15,7 @@ Bounded implementation. Fresh read-only review. Deterministic evidence. No silen
 
 [Quick start](#quick-start) · [Why it exists](#why-mandatemarshal-exists) · [Codex setup](docs/CODEX_SETUP.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md)
 
-<img src="./assets/social-preview.svg" alt="MandateMarshal social preview" width="100%" />
+<img src="./assets/mandatemarshal-social-preview.png" alt="MandateMarshal social preview" width="100%" />
 
 </div>
 
