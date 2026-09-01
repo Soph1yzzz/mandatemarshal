@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RunStateMachine } from "../../src/core/state-machine";
@@ -27,6 +27,27 @@ describe("DurableRunStore", () => {
     const restored = RunStateMachine.restore(recovered.snapshot!.machine, recovered.machineEvents);
     expect(restored.state).toBe("PLANNING");
     expect(restored.events).toHaveLength(3);
+  });
+
+  test("serializes repeated snapshots at the same journal sequence without filename collisions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "mandatemarshal-durable-snapshots-"));
+    const store = await DurableRunStore.create("run-snapshots", root);
+    const machine = new RunStateMachine("run-snapshots");
+    machine.transition("INTAKE");
+    await store.appendMachineEvents(machine.events);
+
+    await Promise.all([
+      store.writeSnapshot(machine.snapshot(), { revision: 1 }),
+      store.writeSnapshot(machine.snapshot(), { revision: 2 }),
+      store.writeSnapshot(machine.snapshot(), { revision: 3 }),
+    ]);
+
+    expect((await readdir(store.snapshotsDir)).filter((name) => name.endsWith(".json"))).toHaveLength(3);
+    const reopened = await DurableRunStore.open("run-snapshots", root);
+    await reopened.writeSnapshot(machine.snapshot(), { revision: 4 });
+    const recovered = await reopened.recover<{ revision: number }>();
+    expect(recovered.snapshot?.state.revision).toBe(4);
+    expect((await readdir(store.snapshotsDir)).filter((name) => name.endsWith(".json"))).toHaveLength(4);
   });
 
   test("rejects journal sequence corruption instead of guessing", async () => {

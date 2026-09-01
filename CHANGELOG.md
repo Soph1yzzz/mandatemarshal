@@ -29,6 +29,10 @@ All notable changes to MandateMarshal are documented in this file.
 - Codex CLI runs remain ephemeral by default, but durable MandateMarshal operations now persist their Codex session so completed work can be recovered after an orchestrator crash.
 - Repository contract now explicitly requires fail-closed recovery for ambiguous external operations and single-writer durable execution.
 
+### Fixed
+
+- Durable snapshot filenames now use a monotonic snapshot ordinal and serialized snapshot writes, preventing same-millisecond filename collisions on fast filesystems such as Linux CI while preserving existing snapshot filename compatibility.
+
 ### Deliberate limits
 
 - v0.2 does not yet provide worktree-per-run isolation, semantic Git checkpoints, a built-in detached daemon, fleet scheduling, or a dashboard.

@@ -44,7 +44,7 @@ This checklist is the publication gate for MandateMarshal v0.2.0.
 ## Verified quality gates
 
 - [x] Strict TypeScript typecheck passes with `0` diagnostics.
-- [x] Full test suite passes: `72/72` tests, `244` assertions.
+- [x] Full test suite passes: `73/73` tests, `247` assertions.
 - [x] `bun audit` reports `0` vulnerabilities.
 - [x] Real Codex three-lane smoke passes: Luna/Max complete, Terra/High complete, Sol/High Fresh Reviewer PASS.
 - [x] Real durable Codex smoke passes: persistent thread captured and completed operation recovered by durable observer.

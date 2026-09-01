@@ -54,6 +54,7 @@ export class DurableRunStore {
   readonly journalPath: string;
   readonly snapshotsDir: string;
   private nextSequence = 1;
+  private nextSnapshotOrdinal = Date.now();
   private writeQueue: Promise<void> = Promise.resolve();
 
   private constructor(
@@ -90,6 +91,14 @@ export class DurableRunStore {
     }
     const journal = await store.readJournal();
     store.nextSequence = (journal.at(-1)?.sequence ?? 0) + 1;
+    const snapshotNames = (await readdir(store.snapshotsDir)).filter((name) => name.endsWith(".json"));
+    const maxSnapshotOrdinal = snapshotNames.reduce((max, name) => {
+      const match = name.match(/^\d+-(\d+)\.json$/u);
+      if (!match) return max;
+      const ordinal = Number(match[1]);
+      return Number.isSafeInteger(ordinal) ? Math.max(max, ordinal) : max;
+    }, 0);
+    store.nextSnapshotOrdinal = Math.max(Date.now(), maxSnapshotOrdinal + 1);
     return store;
   }
 
@@ -131,18 +140,23 @@ export class DurableRunStore {
 
   async writeSnapshot<TState>(machine: RunMachineSnapshot, state: TState): Promise<DurableRunSnapshot<TState>> {
     if (machine.runId !== this.runId) throw new Error(`Snapshot runId mismatch: ${machine.runId}`);
-    await this.writeQueue;
-    const snapshot: DurableRunSnapshot<TState> = {
-      schemaVersion: 1,
-      runId: this.runId,
-      sequence: this.nextSequence - 1,
-      createdAt: new Date().toISOString(),
-      machine,
-      state,
-    };
-    const filename = `${String(snapshot.sequence).padStart(12, "0")}-${Date.now()}.json`;
-    await writeExclusiveJson(join(this.snapshotsDir, filename), snapshot);
-    return snapshot;
+    let created!: DurableRunSnapshot<TState>;
+    await this.enqueue(async () => {
+      const snapshot: DurableRunSnapshot<TState> = {
+        schemaVersion: 1,
+        runId: this.runId,
+        sequence: this.nextSequence - 1,
+        createdAt: new Date().toISOString(),
+        machine,
+        state,
+      };
+      const ordinal = this.nextSnapshotOrdinal;
+      this.nextSnapshotOrdinal += 1;
+      const filename = `${String(snapshot.sequence).padStart(12, "0")}-${String(ordinal).padStart(16, "0")}.json`;
+      await writeExclusiveJson(join(this.snapshotsDir, filename), snapshot);
+      created = snapshot;
+    });
+    return created;
   }
 
   async readJournal(): Promise<DurableJournalEntry[]> {
