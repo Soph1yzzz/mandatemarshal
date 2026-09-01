@@ -1,4 +1,4 @@
-# MandateMarshal v0.1 Decision Log
+# MandateMarshal Decision Log
 
 This log records settled implementation decisions that must not be silently reopened by later agents.
 
@@ -140,3 +140,21 @@ The external registry is authoritative once MandateMarshal is loaded, but curren
 A full Codex Security scan remains an optional higher-assurance review for future releases or materially larger attack surfaces, such as new network-facing inputs, remote services, parsers/deserializers for untrusted data, broader plugin execution, or other substantial privilege boundaries. An unavailable or unfinished Codex Security run is therefore not a release blocker by itself.
 
 **Approved by Owner:** 2026-08-28.
+
+## v0.2 durable-runtime decisions — 2026-08-31
+
+### D-025 — Recovery uses journal plus observation, not blind retry
+
+**Decision:** Important external operations are preceded by a durable intent record. After a crash, an unfinished intent is reconciled from observed external state and classified as completed, retryable, waiting, or reconciliation-required. Runtime process death alone is never evidence that the external action did not happen.
+
+### D-026 — Journal is authoritative for replay; snapshots are acceleration
+
+**Decision:** Durable state-machine events are append-only and sequence checked. Snapshots carry engine continuation data, but a transition durably appended after the latest snapshot is recovered by replaying the journal rather than discarded in favor of the older snapshot.
+
+### D-027 — Durable runs are single-writer
+
+**Decision:** One lease owner may advance a durable run at a time. Live owners renew the lease. Expired takeover is explicit, and lease tokens prevent a stale owner from releasing a replacement lease.
+
+### D-028 — Codex persistent sessions are observed conservatively
+
+**Decision:** Normal Codex runs remain ephemeral. A durable Codex operation persists its thread/session and external operation mapping outside the target repository. A validated completed session may be recovered without relaunching the child. An incomplete thread is not automatically resumed solely because `codex exec resume` exists; if duplicate side-effect safety cannot be proven, recovery remains reconciliation-required.

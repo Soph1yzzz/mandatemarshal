@@ -4,11 +4,35 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-01
+
+### Added
+
+- Durable append-only run journal with strict sequence validation and flushed writes at orchestration boundaries.
+- Versioned durable snapshots plus state-machine event replay so transitions committed after the latest snapshot survive restart.
+- External-operation intent/observation/completion protocol with explicit `completed`, `retryable`, `waiting`, and `reconciliation-required` recovery outcomes.
+- Operation idempotency keys that reject duplicate live intents and prevent a crash from silently launching a second implementer or reviewer.
+- Single-writer durable run leases with renewal, token validation, and explicit expired-lease takeover.
+- Durable `OrchestrationEngine` resume path covering implementer launch, Parent verification, Fresh Reviewer launch, and final artifact persistence.
+- `mandatemarshal run status` and `mandatemarshal run resume` operator CLI surfaces backed by journal events rather than direct snapshot mutation.
+- Codex durable-operation mapping outside the target repository, persistent Codex thread capture, and completed-result recovery from Codex session JSONL.
+- Real-host Luna/Max durable Codex smoke test validating thread persistence and completed-operation observation.
+- JSON Schemas for durable journal entries and durable run snapshots.
+- Crash/fault-injection regressions for implementer/reviewer launch boundaries, ambiguous operations, recovered completions, journal corruption, and lease takeover/renewal.
+- Dedicated durable-runtime architecture documentation.
+
 ### Changed
 
 - Reworked the README opening into a GitHub landing layer with a concise value comparison, quick start, status badges, and an inline authority/review flow.
 - Added search-oriented package metadata and keywords for Codex, coding-agent orchestration, agent governance/safety, and developer-tool discovery.
 - Added a repository social-preview banner and surfaced it in the README hero.
+- Codex CLI runs remain ephemeral by default, but durable MandateMarshal operations now persist their Codex session so completed work can be recovered after an orchestrator crash.
+- Repository contract now explicitly requires fail-closed recovery for ambiguous external operations and single-writer durable execution.
+
+### Deliberate limits
+
+- v0.2 does not yet provide worktree-per-run isolation, semantic Git checkpoints, a built-in detached daemon, fleet scheduling, or a dashboard.
+- Incomplete Codex threads are not auto-resumed when MandateMarshal cannot prove that continuing would avoid duplicate non-idempotent side effects.
 
 ## [0.1.0] - 2026-08-28
 

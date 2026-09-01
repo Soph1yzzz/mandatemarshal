@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mandatemarshal/durable-run-snapshot.schema.json",
+  "title": "MandateMarshal Durable Run Snapshot",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "sequence", "createdAt", "machine", "state"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "createdAt": { "type": "string", "minLength": 1 },
+    "machine": {
+      "type": "object",
+      "required": ["schemaVersion", "runId", "state", "pendingEscalation"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "runId": { "type": "string", "minLength": 1 },
+        "state": {
+          "enum": [
+            "IDLE",
+            "INTAKE",
+            "CONTRACT_CHECK",
+            "PLANNING",
+            "READY_TO_DELEGATE",
+            "IMPLEMENTING",
+            "PARENT_VERIFYING",
+            "FRESH_REVIEWING",
+            "CORRECTION_REQUIRED",
+            "AUTHORITY_CONFLICT",
+            "USER_DECISION_PENDING",
+            "ACCEPTING",
+            "COMPLETED",
+            "BLOCKED",
+            "ABORTED"
+          ]
+        },
+        "candidateId": { "type": "string", "minLength": 1 },
+        "freshPassCandidateId": { "type": "string", "minLength": 1 },
+        "pendingEscalation": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "state": {}
+  },
+  "additionalProperties": false
+}

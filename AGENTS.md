@@ -1,6 +1,6 @@
 # MandateMarshal Repository Contract
 
-This file is normative for this repository. The archived R2 specification bundle remains design provenance; this file plus `docs/DECISIONS.md` define the implemented v0.1 contract.
+This file is normative for this repository. The archived R2 specification bundle remains design provenance; this file plus `docs/DECISIONS.md` define the implemented v0.2 contract.
 
 ## Mission
 
@@ -26,6 +26,10 @@ Build a portable, authority-aware coding-agent orchestration system where agents
 16. Complexity reclassification is explicit and distinct from capability fallback.
 17. Run evidence must not dirty the target repository by default.
 18. MandateMarshal activation is explicit-first and project-persistent; activation state must live outside the target repository by default and must not grant Owner-policy authority.
+19. Durable recovery must never infer that an unfinished external operation is safe to repeat merely because MandateMarshal crashed.
+20. Durable state is append-only/replayable where possible; corrupt or ambiguous recovery evidence fails closed.
+21. A durable run has one active writer. Expired-lease takeover must be explicit and must not let a stale owner release the replacement lease.
+22. Provider session resumability is not equivalent to side-effect-safe retry. Incomplete provider sessions remain reconciliation-required unless completion or non-execution can be observed.
 
 ## Approved R2 implementation clarifications
 
@@ -43,7 +47,7 @@ The Owner approved these resolutions before v0.1 implementation:
 - `src/core/**`: provider-neutral authority, state, evidence contracts.
 - `src/orchestrator/**`: orchestration policy and explicit state transitions.
 - `src/adapters/**`: host/provider integration only.
-- `src/runtime/**`: deterministic evidence and persistence utilities.
+- `src/runtime/**`: deterministic evidence, durable journal/snapshot persistence, recovery, leases, and activation utilities.
 - `schemas/**`: wire contracts.
 - `skills/**`, `prompts/**`, `templates/**`, `.codex-plugin/**`: host packaging and role behavior.
 - `tests/**`: authority, execution, routing, portability, and integration regressions.

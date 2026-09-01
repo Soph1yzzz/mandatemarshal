@@ -41,6 +41,8 @@ import { packet } from "../fixtures/factories";
       "escalation.schema.json",
       "run-event.schema.json",
       "project-activation.schema.json",
+      "durable-journal-entry.schema.json",
+      "durable-run-snapshot.schema.json",
     ]) {
       const text = await readFile(new URL(`../../schemas/${name}`, import.meta.url), "utf8");
       expect(() => JSON.parse(text)).not.toThrow();

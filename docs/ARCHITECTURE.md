@@ -40,13 +40,17 @@ Deterministic mechanisms:
 - Git/non-Git repository state;
 - candidate re-observation;
 - external run-artifact persistence;
-- external project-activation persistence.
+- external project-activation persistence;
+- append-only durable run journals and sequence validation;
+- durable snapshots plus state-machine replay;
+- operation intent/observation/completion reconciliation;
+- single-writer run leases with renewal and explicit expired takeover.
 
 ### Adapters — `src/adapters/**`
 
 Host-specific mapping and transport:
 
-- `codex/`: approved Codex v0.1 role mappings plus a CLI driver;
+- `codex/`: approved Codex role mappings, CLI driver, and durable-operation observer;
 - `claude-code/`: experimental bridge contract only;
 - `generic/`: deterministic mock used by conformance/integration tests.
 
@@ -103,6 +107,20 @@ routine IMPLEMENTING
 ```
 
 This path is intentionally different from model/capability failure. If the configured Luna/Max lane cannot launch, the adapter surfaces the capability failure and does not substitute Terra/High.
+
+## Durable runtime boundary
+
+v0.2 durability is opt-in per engine run and persists outside the target repository under `~/.mandatemarshal/runtime/` by default.
+
+The runtime records important external boundaries as `intent -> external action -> observation -> completion`. A crash between those steps does not authorize a blind retry. Recovery classifies unfinished operations as completed, retryable, still running, or reconciliation-required from observed evidence.
+
+State-machine events are replayable. Snapshots accelerate recovery but are not treated as a replacement for the journal: a transition durably appended after the last snapshot is recovered from the journal.
+
+One lease owner may advance a durable run at a time. The live runtime renews its lease; takeover of an expired lease is explicit.
+
+For durable Codex operations, the CLI driver persists the Codex thread ID outside the target repository and can recover a validated completed result from Codex session JSONL. An incomplete Codex thread is not automatically resumed because session resumability alone does not prove that retrying remaining work is side-effect safe.
+
+See `docs/DURABLE_RUNTIME.md`.
 
 ## Project activation boundary
 

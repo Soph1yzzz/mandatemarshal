@@ -1,6 +1,6 @@
 # Codex Setup
 
-MandateMarshal v0.1 uses semantic roles in core and maps them to Codex-specific agent profiles only at the adapter/packaging boundary.
+MandateMarshal uses semantic roles in core and maps them to Codex-specific agent profiles only at the adapter/packaging boundary.
 
 ## Default mapping
 
@@ -35,7 +35,7 @@ After adding or changing custom agent profiles, start a new Codex session so fut
 
 ## Real CLI driver
 
-`CodexCliDriver` uses the installed Codex CLI and starts each child with an ephemeral context. It passes the exact configured model, reasoning effort, and sandbox request to `codex exec`.
+`CodexCliDriver` uses the installed Codex CLI and passes the exact configured model, reasoning effort, and sandbox request to `codex exec`. Normal runs remain ephemeral; v0.2 durable operations persist the Codex thread/session so a proven completed result can be recovered after an orchestrator crash.
 
 Implementation child:
 
@@ -50,6 +50,8 @@ codex exec --ephemeral ... -m <model> -c model_reasoning_effort="<effort>" -s re
 ```
 
 The driver does not contain a model fallback table.
+
+For a durable operation, MandateMarshal records the operation-to-thread mapping outside the target repository under `~/.mandatemarshal/providers/codex/operations/`. It observes the persisted Codex session JSONL conservatively: a validated completed result may be reused, a still-running process is reported as waiting, and an incomplete/ambiguous session remains reconciliation-required. `codex exec resume` availability is not treated as proof that automatic continuation is side-effect safe.
 
 ## Requested vs observed isolation
 

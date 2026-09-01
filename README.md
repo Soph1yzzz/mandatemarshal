@@ -5,7 +5,7 @@
 ### Give coding agents autonomy without accidentally giving them authority.
 
 **Authority-aware orchestration for Codex and coding agents.**<br>
-Bounded implementation. Fresh read-only review. Deterministic evidence. No silent fallback.
+Bounded implementation. Fresh read-only review. Durable recovery. Deterministic evidence. No silent fallback.
 
 [![CI](https://github.com/Soph1yzzz/mandatemarshal/actions/workflows/ci.yml/badge.svg)](https://github.com/Soph1yzzz/mandatemarshal/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/Soph1yzzz/mandatemarshal?display_name=tag)](https://github.com/Soph1yzzz/mandatemarshal/releases/latest)
@@ -13,7 +13,7 @@ Bounded implementation. Fresh read-only review. Deterministic evidence. No silen
 [![Codex](https://img.shields.io/badge/Codex-supported-111827)](docs/CODEX_SETUP.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6)](tsconfig.json)
 
-[Quick start](#quick-start) · [Why it exists](#why-mandatemarshal-exists) · [Codex setup](docs/CODEX_SETUP.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md)
+[Quick start](#quick-start) · [Why it exists](#why-mandatemarshal-exists) · [Durable runtime](docs/DURABLE_RUNTIME.md) · [Codex setup](docs/CODEX_SETUP.md) · [Architecture](docs/ARCHITECTURE.md) · [Security](SECURITY.md)
 
 <img src="./assets/mandatemarshal-social-preview.png" alt="MandateMarshal social preview" width="100%" />
 
@@ -31,6 +31,7 @@ MandateMarshal separates **who may execute** from **who may decide**. Give codin
 | A requested model/role is unavailable and something else runs | Exact route or loud capability failure; no silent fallback |
 | Review passes, then the candidate changes | The old `PASS` is invalid because review is bound to candidate identity |
 | A child claims verification happened | Deterministic evidence captures commands, repository state, paths, and artifacts |
+| The orchestrator crashes after launching a child | Durable intent/observation records prevent blind duplicate launches and recover proven completed work |
 
 The core rule is simple:
 
@@ -79,7 +80,7 @@ flowchart LR
     F -->|ESCALATE| O
 ```
 
-The model names above are the **Codex v0.1 adapter defaults**, not assumptions in the provider-neutral core. A candidate that changes after review loses its `PASS` and must be reviewed again.
+The model names above are the **Codex adapter defaults**, not assumptions in the provider-neutral core. A candidate that changes after review loses its `PASS` and must be reviewed again.
 
 ## Why MandateMarshal exists
 
@@ -135,9 +136,9 @@ DETECT -> INVESTIGATE -> PROPOSE -> HOLD -> ESCALATE
 
 ## Codex support
 
-MandateMarshal is packaged for Codex and uses Codex custom-agent, model/effort routing, sandbox, Plugin, and Skill surfaces. The v0.1 real-host acceptance smoke has executed the complete routine, complex, and Fresh Reviewer lanes successfully on Codex.
+MandateMarshal is packaged for Codex and uses Codex custom-agent, model/effort routing, sandbox, Plugin, and Skill surfaces. Real-host acceptance smoke has executed the complete routine, complex, and Fresh Reviewer lanes successfully on Codex. v0.2 additionally runs a real Luna/Max durable-session smoke that persists the Codex thread ID and recovers the completed operation through the durable observer.
 
-## Codex v0.1 defaults
+## Codex defaults
 
 These are adapter defaults, not core assumptions:
 
@@ -156,7 +157,7 @@ Current Codex agent configuration supports project-scoped custom agents, per-age
 
 MandateMarshal uses machines for mechanical facts and model judgment for contextual review.
 
-Built-in v0.1 evidence primitives cover:
+Built-in evidence primitives cover:
 
 - exact command ledger ingestion;
 - required/forbidden command checks;
@@ -175,6 +176,34 @@ By default persistent run evidence is written under:
 ```
 
 so the target repository is not dirtied merely by being orchestrated.
+
+## Durable crash recovery — v0.2
+
+Durability can be enabled per orchestration run. The runtime persists an append-only journal and snapshots outside the target repository:
+
+```text
+~/.mandatemarshal/runtime/<run-id>/
+```
+
+Important external operations are recorded as an intent before execution and reconciled from observed state after a crash. Recovery distinguishes:
+
+- completed work that can be reused;
+- authoritative non-execution that permits retry;
+- work that is still running;
+- ambiguous work that must stop as `reconciliation-required` rather than risk a duplicate side effect.
+
+A single-writer lease with heartbeat prevents two Parent runtimes from advancing the same durable run concurrently.
+
+For Codex durable operations, MandateMarshal records the persistent Codex thread ID under `~/.mandatemarshal/providers/codex/operations/`. Completed session JSONL can be recovered without relaunching the child. Incomplete Codex sessions are deliberately **not** auto-resumed when side-effect safety cannot be proven.
+
+Operator inspection:
+
+```bash
+mandatemarshal run status <run-id>
+mandatemarshal run resume <run-id>
+```
+
+See [Durable Runtime](docs/DURABLE_RUNTIME.md) for recovery semantics, fault-injection coverage, and deliberate v0.2 limits.
 
 ## Fresh-review gate
 
@@ -293,7 +322,7 @@ See `docs/ARCHITECTURE.md` for the contract boundaries.
 
 ## Configuration
 
-`config.example.json` demonstrates the v0.1 schema. Hard invariants for a compliant run include:
+`config.example.json` demonstrates the current v1 configuration schema. Hard invariants for a compliant run include:
 
 - mandatory fresh review;
 - fresh reviewer context required;
@@ -307,7 +336,7 @@ Repository-specific policies such as Python no-bytecode remain opt-in configurat
 
 ## Tests
 
-The v0.1 suite covers authority, state, execution evidence, routing, Codex adapter conformance, provider-neutral core, and Claude portability fixtures.
+The current suite covers authority, state, execution evidence, routing, durable crash recovery, Codex adapter conformance, provider-neutral core, and Claude portability fixtures.
 
 Important regressions include:
 
@@ -322,7 +351,14 @@ Important regressions include:
 - routine routes to Luna/Max;
 - material complexity routes/reclassifies to Terra/High;
 - unavailable exact effort/model selection does not silently fall back;
-- a mock Claude Code bridge runs the same provider-neutral orchestration path.
+- a mock Claude Code bridge runs the same provider-neutral orchestration path;
+- journal sequence corruption fails closed;
+- an ambiguous crashed Implementer or Fresh Reviewer launch is not duplicated;
+- an authoritatively absent operation can be retried once;
+- a proven completed Codex durable operation is recovered without relaunching the child;
+- Parent verification can safely retry after crash because that boundary is explicitly idempotent;
+- a completed artifact bundle can be reconciled after a crash before the completion event was journaled;
+- a live run lease heartbeat prevents stale-owner takeover.
 
 Run:
 
@@ -332,7 +368,7 @@ bun test
 
 ## Claude Code status
 
-v0.1 includes an **experimental bridge contract and conformance fixture**, not production parity. A real production-grade Claude Code adapter is planned after the provider-neutral seam has been validated in practice.
+Claude Code remains an **experimental bridge contract and conformance fixture**, not production parity. A real production-grade Claude Code adapter is planned after the provider-neutral seam has been validated in practice.
 
 MandateMarshal deliberately does not market fixture-level portability as full runtime support.
 

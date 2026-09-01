@@ -1,4 +1,4 @@
-import type { ReviewResult, RunEvent, RunState } from "./types";
+import type { ReviewResult, RunEvent, RunMachineSnapshot, RunState } from "./types";
 
 export class InvalidTransitionError extends Error {
   constructor(
@@ -51,6 +51,76 @@ export class RunStateMachine {
   private readonly _events: RunEvent[] = [];
 
   constructor(readonly runId: string) {}
+
+  static replay(runId: string, events: readonly RunEvent[]): RunStateMachine {
+    const machine = new RunStateMachine(runId);
+    for (const event of events) {
+      if (event.runId !== runId) throw new Error(`replay event runId mismatch: expected ${runId}, got ${event.runId}`);
+      if (event.type === "StateTransition") {
+        const payload = event.payload as { from?: RunState; to?: RunState } | undefined;
+        if (!payload?.from || !payload.to || machine._state !== payload.from) {
+          throw new Error(`Invalid persisted state transition at ${event.at}`);
+        }
+        if (!ALLOWED[payload.from].has(payload.to)) {
+          throw new Error(`Persisted transition is not allowed: ${payload.from} -> ${payload.to}`);
+        }
+        machine._state = payload.to;
+      } else if (event.type === "CandidateChanged") {
+        const payload = event.payload as { candidateId?: string } | undefined;
+        if (!payload?.candidateId) throw new Error("Persisted CandidateChanged event is malformed");
+        machine._candidateId = payload.candidateId;
+        machine._freshPassCandidateId = undefined;
+      } else if (event.type === "ReviewPassed") {
+        const payload = event.payload as { candidateId?: string } | undefined;
+        if (!payload?.candidateId || payload.candidateId !== machine._candidateId) {
+          throw new Error("Persisted ReviewPassed candidate does not match current candidate");
+        }
+        machine._freshPassCandidateId = payload.candidateId;
+      } else if (event.type === "ReviewFixRequired") {
+        machine._freshPassCandidateId = undefined;
+      } else if (event.type === "ReviewEscalated") {
+        machine._freshPassCandidateId = undefined;
+        machine._pendingEscalation = true;
+      } else if (event.type === "EscalationPending") {
+        machine._pendingEscalation = true;
+      } else if (event.type === "EscalationResolved") {
+        machine._pendingEscalation = false;
+      }
+      machine._events.push(event);
+    }
+    return machine;
+  }
+
+  static restore(snapshot: RunMachineSnapshot, events: readonly RunEvent[] = []): RunStateMachine {
+    if (!snapshot.runId.trim()) throw new Error("snapshot runId must be non-empty");
+    if (snapshot.freshPassCandidateId !== undefined && snapshot.freshPassCandidateId !== snapshot.candidateId) {
+      throw new Error("snapshot fresh PASS candidate must match the current candidate");
+    }
+    for (const event of events) {
+      if (event.runId !== snapshot.runId) {
+        throw new Error(`snapshot event runId mismatch: expected ${snapshot.runId}, got ${event.runId}`);
+      }
+    }
+
+    const machine = new RunStateMachine(snapshot.runId);
+    machine._state = snapshot.state;
+    machine._candidateId = snapshot.candidateId;
+    machine._freshPassCandidateId = snapshot.freshPassCandidateId;
+    machine._pendingEscalation = snapshot.pendingEscalation;
+    machine._events.push(...events);
+    return machine;
+  }
+
+  snapshot(): RunMachineSnapshot {
+    return {
+      schemaVersion: 1,
+      runId: this.runId,
+      state: this._state,
+      ...(this._candidateId === undefined ? {} : { candidateId: this._candidateId }),
+      ...(this._freshPassCandidateId === undefined ? {} : { freshPassCandidateId: this._freshPassCandidateId }),
+      pendingEscalation: this._pendingEscalation,
+    };
+  }
 
   get state(): RunState {
     return this._state;

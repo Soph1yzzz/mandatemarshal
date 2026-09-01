@@ -137,5 +137,29 @@ try {
     ),
   );
 } finally {
-  await rm(root, { recursive: true, force: true, maxRetries: 8, retryDelay: 150 });
+  await cleanupTempRoot(root);
+}
+
+async function cleanupTempRoot(path: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      await rm(path, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!isTransientWindowsCleanupError(error)) throw error;
+      await Bun.sleep(Math.min(250 + attempt * 150, 1_500));
+    }
+  }
+
+  // The smoke result is about Codex routing/review behavior. Windows can retain a
+  // short-lived handle to a completed child process' temp directory; report that
+  // hygiene issue without converting a fully passed provider smoke into a false FAIL.
+  console.warn(`REAL_SMOKE_TEMP_CLEANUP_WARNING path=${path}; error=${String(lastError)}`);
+}
+
+function isTransientWindowsCleanupError(error: unknown): boolean {
+  if (process.platform !== "win32" || typeof error !== "object" || error === null || !("code" in error)) return false;
+  return ["EBUSY", "EPERM", "ENOTEMPTY"].includes(String((error as { code?: unknown }).code));
 }

@@ -1,7 +1,7 @@
 {
   "name": "mandatemarshal",
-  "version": "0.1.0",
-  "description": "Authority-aware orchestration for Codex and coding agents with bounded autonomy, fresh review, deterministic evidence, and no silent fallback.",
+  "version": "0.2.0",
+  "description": "Authority-aware orchestration for Codex and coding agents with bounded autonomy, durable recovery, fresh review, deterministic evidence, and no silent fallback.",
   "keywords": [
     "agent-skills",
     "agent-orchestration",
@@ -50,7 +50,8 @@
     "capture:state": "bun tools/capture-state.ts",
     "activation": "bun tools/activation.ts",
     "install:codex-agents": "bun tools/install-codex-agents.ts",
-    "smoke:codex": "bun tools/smoke-codex.ts"
+    "smoke:codex": "bun tools/smoke-codex.ts",
+    "smoke:codex:durable": "bun tools/smoke-codex-durable.ts"
   },
   "exports": {
     ".": "./src/index.ts",

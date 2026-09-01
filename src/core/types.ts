@@ -243,8 +243,27 @@ export interface ReviewerHandle {
   candidateId: string;
 }
 
+export interface DurableExecutionContext {
+  operationId: string;
+  idempotencyKey: string;
+}
+
+export interface DurableOperationProbe {
+  operationId: string;
+  kind: "spawn-implementer" | "spawn-reviewer" | "parent-verify" | "persist-artifacts" | "custom";
+  idempotencyKey: string;
+  payload?: unknown;
+}
+
+export type DurableOperationProbeResult =
+  | { outcome: "completed"; detail: string; result?: unknown }
+  | { outcome: "not-found"; detail: string }
+  | { outcome: "in-progress"; detail: string }
+  | { outcome: "unknown"; detail: string };
+
 export interface ImplementerSpawnRequest {
   packet: ImplementationPacket;
+  durable?: DurableExecutionContext;
 }
 
 export interface ReviewerSpawnRequest {
@@ -254,6 +273,7 @@ export interface ReviewerSpawnRequest {
   constraints: string[];
   allowedPaths: string[];
   evidence: ExecutionEvidence;
+  durable?: DurableExecutionContext;
 }
 
 export interface CorrectionPacket {
@@ -276,6 +296,7 @@ export interface HostAdapter {
     trust: EvidenceTrust;
   }>;
   observeRouting?(handle: WorkerHandle | ReviewerHandle): Promise<AgentRoutingEvidence>;
+  observeDurableOperation?(operation: DurableOperationProbe): Promise<DurableOperationProbeResult>;
 }
 
 export interface RunEvent<T = unknown> {
@@ -285,4 +306,13 @@ export interface RunEvent<T = unknown> {
   runId: string;
   state: RunState;
   payload?: T;
+}
+
+export interface RunMachineSnapshot {
+  schemaVersion: 1;
+  runId: string;
+  state: RunState;
+  candidateId?: string;
+  freshPassCandidateId?: string;
+  pendingEscalation: boolean;
 }

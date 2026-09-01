@@ -1,5 +1,7 @@
 import type {
   CorrectionPacket,
+  DurableOperationProbe,
+  DurableOperationProbeResult,
   HostAdapter,
   HostCapabilities,
   ImplementationReport,
@@ -48,6 +50,7 @@ export interface CodexDriver {
     role: CodexNativeRoleConfig;
     correction: CorrectionPacket;
   }): Promise<CodexDriverRun<ImplementationReport>>;
+  observeDurableOperation?(operation: DurableOperationProbe): Promise<DurableOperationProbeResult>;
 }
 
 export interface CodexAdapterConfig {
@@ -160,6 +163,13 @@ export class CodexAdapter implements HostAdapter {
       observedReadOnly: reviewer && caps.observedReadOnly,
       trust: caps.observedReadOnly ? "OBSERVED" : caps.requestedReadOnly ? "REPORTED" : "UNAVAILABLE",
     };
+  }
+
+  async observeDurableOperation(operation: DurableOperationProbe): Promise<DurableOperationProbeResult> {
+    if (!this.driver.observeDurableOperation) {
+      return { outcome: "unknown", detail: "Active Codex driver does not expose durable operation observation" };
+    }
+    return this.driver.observeDurableOperation(operation);
   }
 
   async observeRouting(handle: WorkerHandle | ReviewerHandle): Promise<AgentRoutingEvidence> {

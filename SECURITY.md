@@ -4,7 +4,7 @@ MandateMarshal security includes conventional software security **and truthful o
 
 ## Supported version
 
-Security fixes currently target the latest `0.1.x` release line.
+Security fixes currently target the latest `0.2.x` release line.
 
 ## Threat and failure model
 
@@ -99,7 +99,36 @@ Mitigations:
 - activation does not modify the target repository;
 - activation never mutates Owner Contracts or authorizes destructive actions.
 
-A process that can arbitrarily modify the user's MandateMarshal home directory can also tamper with activation state. v0.1 does not claim protection against a fully compromised same-user account.
+A process that can arbitrarily modify the user's MandateMarshal home directory can also tamper with activation state. MandateMarshal does not claim protection against a fully compromised same-user account.
+
+### Crash recovery ambiguity and duplicate side effects
+
+A crashed orchestrator must not assume an external operation failed merely because its local completion event is missing. Blind retry can duplicate writes, launches, reviews, or other non-idempotent side effects.
+
+Mitigations:
+
+- append-only operation intents are persisted before important external actions;
+- recovery re-observes provider/local state and classifies work as completed, retryable, waiting, or reconciliation-required;
+- live idempotency keys reject duplicate unfinished intents;
+- ambiguous operations fail closed instead of being silently replayed;
+- Parent verification is retried only at the explicitly idempotent boundary;
+- artifact persistence is reconciled from the existing validated bundle before any replacement write.
+
+### Durable-state tampering and concurrent writers
+
+Durable runs persist under `~/.mandatemarshal/runtime/` by default. Codex durable-operation mappings persist under `~/.mandatemarshal/providers/codex/operations/`.
+
+Mitigations:
+
+- journal sequence gaps/corruption fail closed;
+- snapshots are versioned and do not override newer journal transitions;
+- one lease owner may advance a run at a time;
+- lease heartbeats keep a live writer current;
+- expired-lease takeover is explicit and token validation prevents a stale owner from releasing a replacement lease;
+- completed Codex session output is schema-validated before it is reused;
+- incomplete Codex sessions are not auto-resumed when duplicate side-effect safety cannot be established.
+
+These files are same-user trust surfaces. MandateMarshal does not claim integrity against a process that already has arbitrary write access to the user's account and MandateMarshal home directory.
 
 ## Secrets and evidence
 
@@ -107,7 +136,7 @@ Do not store complete environments, credentials, API keys, or unbounded stdout/s
 
 The current evidence model supports excerpts/trust metadata. Integrators should redact secret-bearing output before persistence and prefer external evidence storage. Persisted run directories are create-once by run ID; artifact files use exclusive creation and request `0600` file / `0700` directory modes where the platform supports POSIX-style permissions.
 
-`CodexCliDriverOptions.command` is trusted operator configuration only. Do not populate it from repository content, model output, or other untrusted input. v0.1 intentionally exposes no arbitrary `extraArgs` injection surface for Codex CLI flags.
+`CodexCliDriverOptions.command` is trusted operator configuration only. Do not populate it from repository content, model output, or other untrusted input. MandateMarshal intentionally exposes no arbitrary `extraArgs` injection surface for Codex CLI flags.
 
 ## Destructive actions
 

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/mandatemarshal/durable-journal-entry.schema.json",
+  "title": "MandateMarshal Durable Journal Entry",
+  "type": "object",
+  "required": ["schemaVersion", "sequence", "runId", "at", "type", "state"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "at": { "type": "string", "minLength": 1 },
+    "type": {
+      "enum": [
+        "machine-event",
+        "operation-intent",
+        "operation-observation",
+        "operation-completed",
+        "operation-abandoned",
+        "operator-command",
+        "note"
+      ]
+    },
+    "state": {
+      "enum": [
+        "IDLE",
+        "INTAKE",
+        "CONTRACT_CHECK",
+        "PLANNING",
+        "READY_TO_DELEGATE",
+        "IMPLEMENTING",
+        "PARENT_VERIFYING",
+        "FRESH_REVIEWING",
+        "CORRECTION_REQUIRED",
+        "AUTHORITY_CONFLICT",
+        "USER_DECISION_PENDING",
+        "ACCEPTING",
+        "COMPLETED",
+        "BLOCKED",
+        "ABORTED"
+      ]
+    },
+    "operationId": { "type": "string", "minLength": 1 },
+    "payload": {}
+  },
+  "additionalProperties": false
+}
