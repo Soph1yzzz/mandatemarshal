@@ -4,6 +4,13 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-03
+
+### Fixed
+
+- Aligned the Codex plugin manifest version with the published package version so installed Codex integrations no longer report the stale v0.1.0 metadata after the v0.2 release.
+- Added a conformance regression that fails CI whenever the package and Codex plugin manifest versions diverge again.
+
 ## [0.2.0] - 2026-09-01
 
 ### Added

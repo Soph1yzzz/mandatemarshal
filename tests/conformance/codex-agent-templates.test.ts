@@ -19,10 +19,14 @@ test("Codex agent templates pin approved v0.1 mappings", async () => {
   expect(reviewer).toContain('sandbox_mode = "read-only"');
 });
 
-test("plugin manifest points to bundled skills", async () => {
-  const text = await readFile(new URL("../../.codex-plugin/plugin.json", import.meta.url), "utf8");
-  const manifest = JSON.parse(text) as { name: string; version: string; skills: string };
+test("plugin manifest points to bundled skills and stays version-aligned with the package", async () => {
+  const [manifestText, packageText] = await Promise.all([
+    readFile(new URL("../../.codex-plugin/plugin.json", import.meta.url), "utf8"),
+    readFile(new URL("../../package.json", import.meta.url), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestText) as { name: string; version: string; skills: string };
+  const packageJson = JSON.parse(packageText) as { name: string; version: string };
   expect(manifest.name).toBe("mandatemarshal");
-  expect(manifest.version).toBe("0.1.0");
+  expect(manifest.version).toBe(packageJson.version);
   expect(manifest.skills).toBe("./skills/");
 });
