@@ -1,6 +1,6 @@
-# Run Receipts and Temporary Trace — v0.2.5
+# Run Receipts and Temporary Trace — v0.2.6
 
-MandateMarshal v0.2.5 adds a lightweight run envelope for Skill-driven orchestration so real Codex work can be traced without forcing every Skill invocation through the full durable engine.
+MandateMarshal uses a lightweight run envelope for Skill-driven orchestration so real Codex work can be traced without forcing every Skill invocation through the full durable engine. v0.2.6 adds a lifecycle bridge so normal Skill transitions no longer depend on manually copying candidate IDs between separate capture/record commands.
 
 ## Two evidence layers
 
@@ -26,11 +26,11 @@ Unix:   $TMPDIR/mandatemarshal/traces/<run-id>.jsonl
          or the platform temporary directory when TMPDIR is not set
 ```
 
-The trace has a fixed **30-day TTL** in v0.2.5. Receipt/trace operations opportunistically delete trace files whose last filesystem modification is older than 30 days. There is no background service and no TTL configuration in v0.2.5.
+The trace has a fixed **30-day TTL** in v0.2.6. Receipt/trace operations opportunistically delete trace files whose last filesystem modification is older than 30 days. There is no background service and no TTL configuration in v0.2.6.
 
 If an active run receives another event after its old trace expired, a new trace file may begin at a later sequence. `run history` reports that history as partial. The persistent receipt remains authoritative for the current minimal state.
 
-A configurable TTL may be considered later if real-world use justifies it; v0.2.5 deliberately keeps the policy fixed.
+A configurable TTL may be considered later if real-world use justifies it; v0.2.6 deliberately keeps the policy fixed.
 
 ## Skill-driven lifecycle
 
@@ -47,47 +47,23 @@ mandatemarshal run ensure <project-root>
 - serializes concurrent creation with a short-lived project lock so simultaneous host contexts converge on one active run;
 - fails rather than guessing if multiple active receipts already exist.
 
-After an Implementer is launched:
+Use the lifecycle bridge for normal Skill operation:
 
 ```text
-mandatemarshal run record <run-id> implementer-started --thread <thread-or-handle>
+mandatemarshal run advance <run-id> implementer-started --thread <thread-or-handle>
+mandatemarshal run advance <run-id> parent-verified
+mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-thread-or-handle>
+mandatemarshal run advance <run-id> review-verdict --verdict PASS|FIX|ESCALATE
+mandatemarshal run advance <run-id> run-completed
 ```
 
-After implementation or correction, mechanically capture the repository candidate:
+`parent-verified`, `reviewer-started`, `review-verdict`, and `run-completed` mechanically re-observe the repository candidate from Git state, diff, and worktree bytes before publishing the requested transition. Git HEAD is stored separately when available and is never treated as the complete candidate identity.
 
-```text
-mandatemarshal run capture <run-id>
-```
+If the observation changed, `run advance` first persists `candidate-observed`, which invalidates stale Parent/PASS bindings before the requested transition is evaluated. If the candidate is unchanged, the observation is not duplicated in the temporary trace; the transition itself carries the mechanically observed candidate binding where required.
 
-`capture` computes the existing MandateMarshal candidate identity from Git state, diff, and worktree bytes, including untracked-file contents. The underlying Git HEAD is stored separately when available; Git HEAD alone is not treated as the complete candidate identity.
+A `FIX` clears any Fresh PASS binding. Record `mandatemarshal run advance <run-id> correction-started`, correct the bounded issue, Parent-verify it, and use a new Fresh Reviewer. Completion remains fail-closed and is rejected unless the mechanically re-observed current candidate retains a Fresh `PASS`.
 
-After Parent verifies that exact candidate, capture once more to prove the verification step itself did not mutate the worktree, then bind Parent verification:
-
-```text
-mandatemarshal run capture <run-id>
-mandatemarshal run record <run-id> parent-verified --candidate <candidate-id>
-```
-
-After Fresh Reviewer launch, record its handle. When the reviewer finishes, capture the repository again **before** recording its verdict. A mutated worktree clears the old Parent/PASS binding and the old candidate verdict cannot be attached to the new state.
-
-```text
-mandatemarshal run record <run-id> reviewer-started --candidate <candidate-id> --thread <reviewer-thread-or-handle>
-mandatemarshal run capture <run-id>
-mandatemarshal run record <run-id> review-verdict --candidate <candidate-id> --verdict PASS
-```
-
-A `FIX` clears any Fresh PASS binding. Record `correction-started`, capture the corrected candidate, verify and re-capture it, and use a new Fresh Reviewer.
-
-Generic `run record` intentionally cannot publish `candidate-observed`; candidate observation is reserved to `run capture` so callers cannot fabricate mechanical candidate evidence.
-
-Completion is fail-closed. Capture once more immediately before completion; only an unchanged candidate retains its Fresh PASS:
-
-```text
-mandatemarshal run capture <run-id>
-mandatemarshal run record <run-id> run-completed
-```
-
-is rejected unless the current candidate has a Fresh `PASS` bound to it.
+Low-level `run capture` and `run record` remain available for compatibility and developer diagnostics. Generic `run record` still cannot publish `candidate-observed`, so callers cannot fabricate mechanical candidate evidence.
 
 ## Inspection
 
@@ -101,6 +77,6 @@ mandatemarshal run history <run-id>
 
 ## Durable runtime distinction
 
-The receipt schema can distinguish `skill-contract` from `durable-runtime`, but v0.2.5's public `run start` / `run ensure` CLI always creates `skill-contract` receipts and rejects a caller-supplied mode override. `durable-runtime` is reserved for a future/internal integration that can prove the actual durable engine created the run; it cannot be claimed by a CLI label alone.
+The receipt schema can distinguish `skill-contract` from `durable-runtime`, but v0.2.6's public `run start` / `run ensure` CLI always creates `skill-contract` receipts and rejects a caller-supplied mode override. `durable-runtime` is reserved for a future/internal integration that can prove the actual durable engine created the run; it cannot be claimed by a CLI label alone.
 
 A Skill receipt improves real-world traceability but does not claim durable external-operation reconciliation merely because a receipt exists. The existing durable runtime remains the stronger crash-recovery mechanism for external operation intent/observation/reconciliation. These two concepts must not be silently conflated.

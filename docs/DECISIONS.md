@@ -204,3 +204,17 @@ Receipt updates are serialized with short-lived filesystem locks so concurrent h
 ### D-036 — Implementers do not own semantic Git commits by default
 
 **Decision:** Routine and complex Implementers may modify their owned worktree paths but must not create commits, tags, or pushes unless the Parent packet explicitly delegates that exact repository operation. Parent owns semantic commit/checkpoint decisions by default; Fresh Reviewer remains read-only and never commits.
+
+## v0.2.6 Skill lifecycle bridge — 2026-09-04
+
+### D-037 — Normal Skill transitions publish minimal receipt state through one high-level command
+
+**Decision:** `mandatemarshal run advance` is the preferred Skill-facing lifecycle publication path. Candidate-bound transitions mechanically re-observe repository state before publication and bind the observed candidate internally rather than requiring the Parent to copy candidate IDs between separate `capture` and `record` commands. When the candidate is unchanged, no redundant `candidate-observed` trace event is required. When it changed, the changed observation is persisted first so stale Parent/Fresh-PASS bindings are invalidated even if the requested transition then fails closed. Low-level `run capture` / `run record` remain supported for compatibility and diagnostics.
+
+Persistent receipts remain deliberately small and contain structured authority/recovery state only; they are not a storage surface for prompts, conversations, or large logs.
+
+### D-038 — Codex model defaults roll forward at the adapter boundary
+
+**Decision:** Semantic roles remain independent from concrete model generations. When a newer appropriate frontier model is officially available in the relevant Codex host and its exact model/effort interface has been verified, the default adapter mapping may roll forward rather than permanently preserving an older frontier model as the main lane. Astra is the planned successor to Sol for the Fresh Reviewer default once those availability/interface conditions are met. Future stronger appropriate models may replace Astra by the same rule.
+
+Older mappings may remain only as explicit compatibility/configuration profiles when useful. Unavailability of the configured default never authorizes silent fallback to an older model, and speculative unreleased model identifiers must not be baked into the core contract.

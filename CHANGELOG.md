@@ -4,6 +4,23 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-09-04
+
+### Added
+
+- Added `mandatemarshal run advance` as a compact Skill-to-receipt lifecycle bridge for Implementer start, Parent verification, Fresh Reviewer start/verdict, correction start, completion, and abort transitions.
+- Added the roadmap policy that Codex model defaults remain adapter-level and roll forward to appropriate newer frontier models; Fresh Reviewer is planned to move from Sol to Astra once Astra is officially available in the relevant Codex host and its exact interface is verified.
+
+### Changed
+
+- Candidate-bound lifecycle transitions now mechanically re-observe Git state, diff, and worktree bytes before receipt publication, without requiring the Parent to manually shuttle candidate IDs.
+- Unchanged candidate observations no longer add redundant lifecycle capture trace events; the persistent receipt remains a small current-state proof rather than a conversation/log store.
+
+### Fixed
+
+- Closed the TenhoZero dogfood gap where real work could reach Parent verification and Fresh Reviewer launch while the canonical receipt remained stuck at `implementer-started` because the Skill lifecycle depended on separate manual `capture` / `record` steps.
+- A changed candidate is persisted before a requested high-level transition is evaluated, so stale Parent/Fresh-PASS bindings fail closed even when that transition is rejected.
+
 ## [0.2.5] - 2026-09-03
 
 ### Added

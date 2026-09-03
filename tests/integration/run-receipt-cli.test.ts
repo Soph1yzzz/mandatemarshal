@@ -40,19 +40,18 @@ test("run receipt CLI starts, records, lists, shows and traces a skill-contract 
     expect(JSON.parse(ensured.stdout).created).toBeFalse();
     expect(JSON.parse(ensured.stdout).receipt.runId).toBe(runId);
 
-    expect((await runCli(["run", "record", runId, "implementer-started", "--thread", "impl-cli", ...roots])).code).toBe(0);
+    expect((await runCli(["run", "advance", runId, "implementer-started", "--thread", "impl-cli", ...roots])).code).toBe(0);
     const fabricated = await runCli(["run", "record", runId, "candidate-observed", "--candidate", "fabricated", ...roots]);
     expect(fabricated.code).not.toBe(0);
     expect(fabricated.stderr).toContain("RUN_RECEIPT_EVENT_INVALID:candidate-observed");
 
-    const captured = await runCli(["run", "capture", runId, ...roots]);
-    expect(captured.code).toBe(0);
-    const candidate = JSON.parse(captured.stdout).candidateId as string;
+    const parentVerified = await runCli(["run", "advance", runId, "parent-verified", ...roots]);
+    expect(parentVerified.code).toBe(0);
+    const candidate = JSON.parse(parentVerified.stdout).candidateId as string;
     expect(candidate).toMatch(/^sha256:[a-f0-9]{64}$/);
-    expect((await runCli(["run", "record", runId, "parent-verified", "--candidate", candidate, ...roots])).code).toBe(0);
-    expect((await runCli(["run", "record", runId, "reviewer-started", "--candidate", candidate, "--thread", "review-cli", ...roots])).code).toBe(0);
-    expect((await runCli(["run", "record", runId, "review-verdict", "--candidate", candidate, "--verdict", "PASS", ...roots])).code).toBe(0);
-    expect((await runCli(["run", "record", runId, "run-completed", ...roots])).code).toBe(0);
+    expect((await runCli(["run", "advance", runId, "reviewer-started", "--thread", "review-cli", ...roots])).code).toBe(0);
+    expect((await runCli(["run", "advance", runId, "review-verdict", "--verdict", "PASS", ...roots])).code).toBe(0);
+    expect((await runCli(["run", "advance", runId, "run-completed", ...roots])).code).toBe(0);
 
     const shown = await runCli(["run", "show", runId, ...roots]);
     expect(shown.code).toBe(0);

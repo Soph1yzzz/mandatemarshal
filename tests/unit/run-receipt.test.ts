@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  advanceRunReceiptLifecycle,
   captureRunCandidate,
   ensureRunReceipt,
   listRunReceipts,
@@ -17,6 +18,12 @@ import {
 async function roots(prefix: string): Promise<{ base: string; storageRoot: string; traceRoot: string }> {
   const base = await mkdtemp(join(tmpdir(), prefix));
   return { base, storageRoot: join(base, "receipts"), traceRoot: join(base, "traces") };
+}
+
+async function runCommand(cwd: string, args: string[]): Promise<void> {
+  const proc = Bun.spawn(args, { cwd, stdout: "pipe", stderr: "pipe" });
+  const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
+  if (code !== 0) throw new Error(`${args.join(" ")} failed: ${stderr}`);
 }
 
 test("skill-contract run gets a canonical persistent receipt and temporary trace", async () => {
@@ -86,6 +93,72 @@ test("receipt tracks candidate-bound Parent verification, fresh review and compl
     ]);
   } finally {
     await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("Skill lifecycle advance mechanically observes candidate without duplicate unchanged capture events", async () => {
+  const { base, storageRoot, traceRoot } = await roots("mandatemarshal-receipt-advance-");
+  try {
+    const options = { storageRoot, traceRoot, mandatemarshalVersion: "0.2.6", idFactory: () => "advance" };
+    const receipt = await startRunReceipt(process.cwd(), "skill-contract", options);
+
+    await advanceRunReceiptLifecycle(receipt.runId, "implementer-started", { threadId: "impl-advance" }, options);
+    const parent = await advanceRunReceiptLifecycle(receipt.runId, "parent-verified", {}, options);
+    expect(parent.candidateId).toMatch(/^sha256:[a-f0-9]{64}$/);
+    expect(parent.parentVerifiedCandidateId).toBe(parent.candidateId);
+
+    await advanceRunReceiptLifecycle(receipt.runId, "reviewer-started", { threadId: "review-advance" }, options);
+    await advanceRunReceiptLifecycle(receipt.runId, "review-verdict", { verdict: "PASS" }, options);
+    const completed = await advanceRunReceiptLifecycle(receipt.runId, "run-completed", {}, options);
+    expect(completed.status).toBe("completed");
+    expect(completed.freshPassCandidateId).toBe(completed.candidateId);
+
+    const history = await readRunHistory(receipt.runId, options);
+    expect(history.events.map((event) => event.type)).toEqual([
+      "run-started",
+      "implementer-started",
+      "candidate-observed",
+      "parent-verified",
+      "reviewer-started",
+      "review-verdict",
+      "run-completed",
+    ]);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("lifecycle advance persists a changed candidate before rejecting stale completion", async () => {
+  const { base, storageRoot, traceRoot } = await roots("mandatemarshal-receipt-advance-mutation-");
+  const project = join(base, "project");
+  try {
+    await mkdir(project);
+    await runCommand(project, ["git", "init"]);
+    await runCommand(project, ["git", "config", "user.email", "mandatemarshal-test@example.invalid"]);
+    await runCommand(project, ["git", "config", "user.name", "MandateMarshal Test"]);
+    const tracked = join(project, "tracked.txt");
+    await writeFile(tracked, "base\n", "utf8");
+    await runCommand(project, ["git", "add", "tracked.txt"]);
+    await runCommand(project, ["git", "commit", "-m", "base"]);
+
+    const options = { storageRoot, traceRoot, mandatemarshalVersion: "0.2.6", idFactory: () => "advance-mutation" };
+    const receipt = await startRunReceipt(project, "skill-contract", options);
+    const verified = await advanceRunReceiptLifecycle(receipt.runId, "parent-verified", {}, options);
+    await advanceRunReceiptLifecycle(receipt.runId, "reviewer-started", { threadId: "review-before-mutation" }, options);
+    await advanceRunReceiptLifecycle(receipt.runId, "review-verdict", { verdict: "PASS" }, options);
+
+    await writeFile(tracked, "mutated after pass\n", "utf8");
+    await expect(advanceRunReceiptLifecycle(receipt.runId, "run-completed", {}, options)).rejects.toThrow(
+      "RUN_RECEIPT_FRESH_PASS_REQUIRED",
+    );
+
+    const persisted = await readRunReceipt(receipt.runId, options);
+    expect(persisted.candidateId).not.toBe(verified.candidateId);
+    expect(persisted.parentVerifiedCandidateId).toBeUndefined();
+    expect(persisted.freshPassCandidateId).toBeUndefined();
+    expect(persisted.lastEventType).toBe("candidate-observed");
+  } finally {
+    await rm(base, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
   }
 });
 

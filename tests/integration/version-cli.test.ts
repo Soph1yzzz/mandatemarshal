@@ -23,6 +23,6 @@ test("--version and -v print the package release version without consulting pin 
     const result = await runCli([flag]);
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expect(result.stdout.trim()).toBe("0.2.5");
+    expect(result.stdout.trim()).toBe("0.2.6");
   }
 });

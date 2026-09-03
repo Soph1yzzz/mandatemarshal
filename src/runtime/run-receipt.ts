@@ -13,6 +13,14 @@ const RUN_RECEIPT_LOCK_STALE_MS = 5 * 60 * 1000;
 export type RunReceiptMode = "skill-contract" | "durable-runtime";
 export type RunReceiptStatus = "active" | "fix-required" | "escalated" | "completed" | "aborted";
 export type RunReceiptVerdict = "PASS" | "FIX" | "ESCALATE";
+export type RunReceiptLifecycleTransition =
+  | "implementer-started"
+  | "parent-verified"
+  | "reviewer-started"
+  | "review-verdict"
+  | "correction-started"
+  | "run-completed"
+  | "run-aborted";
 export type RunReceiptEventType =
   | "run-started"
   | "implementer-started"
@@ -185,6 +193,58 @@ export async function captureRunCandidate(runId: string, options: RunReceiptOpti
     },
     options,
   );
+}
+
+/**
+ * Bridge a Skill lifecycle transition into the persistent receipt without requiring
+ * the Parent to manually shuttle candidate IDs between `capture` and `record`.
+ * Candidate-bound transitions mechanically re-observe the repository first. An
+ * unchanged observation is not duplicated in the temporary trace; a changed
+ * observation is persisted before the requested transition so stale bindings are
+ * invalidated even when the transition then fails closed.
+ */
+export async function advanceRunReceiptLifecycle(
+  runId: string,
+  transition: RunReceiptLifecycleTransition,
+  input: RunReceiptEventInput = {},
+  options: RunReceiptOptions = {},
+): Promise<RunReceipt> {
+  if (
+    transition === "parent-verified" ||
+    transition === "reviewer-started" ||
+    transition === "review-verdict" ||
+    transition === "run-completed"
+  ) {
+    const candidateId = await refreshRunCandidate(runId, options);
+    return recordRunReceiptEvent(
+      runId,
+      transition,
+      transition === "run-completed" ? input : { ...input, candidateId },
+      options,
+    );
+  }
+
+  return recordRunReceiptEvent(runId, transition, input, options);
+}
+
+async function refreshRunCandidate(runId: string, options: RunReceiptOptions): Promise<string> {
+  const receipt = await readRunReceipt(runId, options);
+  const observation = await observeRepositoryCandidate(receipt.projectPath);
+  const gitHead = observation.state.baseRevision;
+  const sameCandidate = receipt.candidateId === observation.candidateId;
+  const sameGitHead = receipt.gitHead === gitHead || (receipt.gitHead === undefined && gitHead === undefined);
+  if (sameCandidate && sameGitHead) return observation.candidateId;
+
+  await recordRunReceiptEvent(
+    runId,
+    "candidate-observed",
+    {
+      candidateId: observation.candidateId,
+      ...(gitHead === undefined ? {} : { gitHead }),
+    },
+    options,
+  );
+  return observation.candidateId;
 }
 
 export async function recordRunReceiptEvent(

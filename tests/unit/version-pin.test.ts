@@ -197,26 +197,26 @@ describe("MandateMarshal version pinning", () => {
     const home = await mkdtemp(join(tmpdir(), "mandatemarshal-version-info-"));
     const codexHome = join(home, ".codex");
     const marketplaceRoot = join(home, "marketplace");
-    await preparePluginCache(codexHome, "0.2.5");
-    await pinMandateMarshal("0.2.5", {
+    await preparePluginCache(codexHome, "0.2.6");
+    await pinMandateMarshal("0.2.6", {
       home,
       codexHome,
-      fetchImpl: releaseFetch("0.2.5"),
-      runner: runnerFor("0.2.5", marketplaceRoot, []),
+      fetchImpl: releaseFetch("0.2.6"),
+      runner: runnerFor("0.2.6", marketplaceRoot, []),
     });
 
     const info = await inspectMandateMarshalVersion({
       home,
       codexHome,
-      runner: runnerFor("0.2.5", marketplaceRoot, [], { installed: true, marketplace: true }),
+      runner: runnerFor("0.2.6", marketplaceRoot, [], { installed: true, marketplace: true }),
     });
     expect(info).toEqual({
-      version: "0.2.5",
+      version: "0.2.6",
       pinStatus: "pinned",
-      pinnedVersion: "0.2.5",
-      installedPluginVersion: "0.2.5",
-      pluginCacheVersion: "0.2.5",
-      pluginCacheSkillVersion: "0.2.5",
+      pinnedVersion: "0.2.6",
+      installedPluginVersion: "0.2.6",
+      pluginCacheVersion: "0.2.6",
+      pluginCacheSkillVersion: "0.2.6",
       legacySkillVersion: null,
       aligned: true,
     });

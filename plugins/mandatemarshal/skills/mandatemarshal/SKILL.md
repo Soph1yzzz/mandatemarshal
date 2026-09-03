@@ -1,6 +1,6 @@
 ---
 name: mandatemarshal
-version: "0.2.5"
+version: "0.2.6"
 description: >
   Authority-aware coding-agent orchestration with explicit Owner/Parent/Implementer/Fresh-Reviewer
   boundaries, deterministic execution evidence, mandatory fresh QA, and no silent model/role fallback.
@@ -35,16 +35,16 @@ At the start or continuation of the objective, run:
 
 `ensure` reuses the only active receipt for that project, creates one when none exists, and fails on ambiguous multiple active receipts. Keep the returned `runId` for the whole FIX/PASS loop and across host-context continuations.
 
-Record only structured lifecycle facts; do not paste raw prompts, secrets, or large logs into the persistent receipt:
+Record only structured lifecycle facts; do not paste raw prompts, secrets, or large logs into the persistent receipt. Prefer `run advance`, which bridges the Skill lifecycle to the receipt lifecycle and mechanically re-observes the candidate on candidate-bound transitions without requiring the Parent to shuttle candidate IDs manually:
 
-1. after an Implementer is launched and its host handle/thread is known: `mandatemarshal run record <run-id> implementer-started --thread <id>`;
-2. after implementation or correction: `mandatemarshal run capture <run-id>` to mechanically bind the current worktree candidate and Git HEAD;
-3. after Parent inspects/verifies that candidate, run `run capture` again; only if the candidate is unchanged record `parent-verified` for that exact candidate;
-4. after Fresh Reviewer launch: record `reviewer-started` with the exact candidate and reviewer thread/handle;
-5. after the reviewer finishes, run `run capture` again before recording its verdict; any candidate change invalidates the old Parent binding and prevents the old verdict from being attached to the new worktree;
-6. record `review-verdict` with `PASS`, `FIX`, or `ESCALATE` for that unchanged candidate;
-7. on `FIX`, record `correction-started`, correct the bounded issue, capture the new candidate, verify/re-capture it, and use a new Fresh Reviewer;
-8. after `PASS`, run `run capture` once more immediately before completion; only an unchanged candidate retains that PASS and may be recorded as `run-completed`. Use `run-aborted` only for an actual abandoned run.
+1. after an Implementer is launched and its host handle/thread is known: `mandatemarshal run advance <run-id> implementer-started --thread <id>`;
+2. after Parent has inspected and verified the actual candidate: `mandatemarshal run advance <run-id> parent-verified`;
+3. after Fresh Reviewer launch: `mandatemarshal run advance <run-id> reviewer-started --thread <id>`;
+4. after the reviewer finishes: `mandatemarshal run advance <run-id> review-verdict --verdict PASS|FIX|ESCALATE`;
+5. on `FIX`: `mandatemarshal run advance <run-id> correction-started`, correct the bounded issue, Parent-verify it, then use a new Fresh Reviewer;
+6. after `PASS`: `mandatemarshal run advance <run-id> run-completed`. Use `run-aborted` only for an actual abandoned run.
+
+For Parent verification, reviewer launch/verdict, and completion, `run advance` re-observes Git state/diff/worktree bytes first. If the candidate changed, the changed candidate is persisted before the requested transition so stale Parent/PASS bindings fail closed. If the candidate is unchanged, no redundant `candidate-observed` trace event is added. Low-level `run capture` / `run record` remain available for compatibility and developer diagnostics.
 
 `mandatemarshal run list`, `run show <run-id>`, and `run history <run-id>` provide developer inspection. Recovery-critical latest state is persistent under `~/.mandatemarshal/`; detailed structured trace is temporary under the OS temp directory and has a fixed 30-day TTL. Trace expiry must never erase the persistent facts needed to bind candidate, Parent verification, unresolved state, or Fresh PASS.
 

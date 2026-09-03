@@ -10,6 +10,7 @@ import {
 import { defaultDurableRunRoot } from "../src/runtime/durable-run-store";
 import { inspectDurableRun, recordResumeRequest } from "../src/runtime/durable-status";
 import {
+  advanceRunReceiptLifecycle,
   captureRunCandidate,
   ensureRunReceipt,
   listRunReceipts,
@@ -19,6 +20,7 @@ import {
   startRunReceipt,
   type RunReceiptEventInput,
   type RunReceiptEventType,
+  type RunReceiptLifecycleTransition,
 } from "../src/runtime/run-receipt";
 import {
   inspectMandateMarshalPin,
@@ -138,6 +140,18 @@ async function handleRun(action: string | undefined, targetArg: string | undefin
       console.log(JSON.stringify(await captureRunCandidate(targetArg, receiptOptions), null, 2));
       return;
     }
+    case "advance": {
+      requireRunId(targetArg);
+      const transition = parseRunLifecycleTransition(eventArg);
+      const thread = readFlagValue("--thread");
+      const verdict = readFlagValue("--verdict");
+      const input: RunReceiptEventInput = {
+        ...(thread === undefined ? {} : { threadId: thread }),
+        ...(verdict === undefined ? {} : { verdict: parseVerdict(verdict) }),
+      };
+      console.log(JSON.stringify(await advanceRunReceiptLifecycle(targetArg, transition, input, receiptOptions), null, 2));
+      return;
+    }
     case "record": {
       requireRunId(targetArg);
       const event = parseRunReceiptEvent(eventArg);
@@ -195,6 +209,21 @@ function parseRunReceiptEvent(value: string | undefined): Exclude<RunReceiptEven
   throw new Error(`RUN_RECEIPT_EVENT_INVALID:${value ?? "missing"}`);
 }
 
+function parseRunLifecycleTransition(value: string | undefined): RunReceiptLifecycleTransition {
+  if (
+    value === "implementer-started" ||
+    value === "parent-verified" ||
+    value === "reviewer-started" ||
+    value === "review-verdict" ||
+    value === "correction-started" ||
+    value === "run-completed" ||
+    value === "run-aborted"
+  ) {
+    return value;
+  }
+  throw new Error(`RUN_RECEIPT_TRANSITION_INVALID:${value ?? "missing"}`);
+}
+
 function parseVerdict(value: string): "PASS" | "FIX" | "ESCALATE" {
   if (value === "PASS" || value === "FIX" || value === "ESCALATE") return value;
   throw new Error(`RUN_RECEIPT_VERDICT_INVALID:${value}`);
@@ -234,6 +263,7 @@ function printUsage(): void {
       "  mandatemarshal run <start|ensure> [project-path]",
       "  mandatemarshal run list",
       "  mandatemarshal run <show|history|capture> <run-id>",
+      "  mandatemarshal run advance <run-id> <transition> [--thread <id>] [--verdict PASS|FIX|ESCALATE]",
       "  mandatemarshal run record <run-id> <event> [--candidate <id>] [--thread <id>] [--verdict PASS|FIX|ESCALATE]",
       "  mandatemarshal run <status|resume> <run-id> [--root <runtime-root>]",
       "  mandatemarshal pin [status|latest|<version>]",

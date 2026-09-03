@@ -24,7 +24,7 @@ mandatemarshal pin latest
 to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
 
 ```bash
-mandatemarshal pin 0.2.5
+mandatemarshal pin 0.2.6
 ```
 
 for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift.
@@ -123,21 +123,22 @@ Later coding requests in the same project may continue without repeating the bra
 
 The registry defaults to `~/.mandatemarshal/projects/`, so activation does not dirty the target repository. v0.1 identifies a project by canonical path; moving/renaming it may require explicit activation again.
 
-## Skill-run receipts — v0.2.5
+## Skill-run receipts — v0.2.6
 
-When the packaged CLI is available, Skill-driven coding objectives use a lightweight canonical run envelope:
+When the packaged CLI is available, Skill-driven coding objectives use a lightweight canonical run envelope. Prefer the lifecycle bridge for normal operation:
 
 ```bash
 mandatemarshal run ensure /path/to/project
-mandatemarshal run capture <run-id>
+mandatemarshal run advance <run-id> parent-verified
+mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-handle>
+mandatemarshal run advance <run-id> review-verdict --verdict PASS
+mandatemarshal run advance <run-id> run-completed
 mandatemarshal run show <run-id>
-mandatemarshal run history <run-id>
-mandatemarshal run list
 ```
 
-`ensure` reuses the only active receipt for the canonical project, creates one when none exists, serializes concurrent creation with a short-lived project lock, and fails on ambiguous multiple active receipts. `capture` mechanically binds Git state, diff, and worktree bytes into the candidate identity and records Git HEAD separately when available. Generic `run record` cannot publish `candidate-observed`; Parent verification, reviewer verdict, and completion should each be preceded by a fresh capture so candidate mutation invalidates stale bindings.
+`ensure` reuses the only active receipt for the canonical project, creates one when none exists, serializes concurrent creation with a short-lived project lock, and fails on ambiguous multiple active receipts. Candidate-bound `run advance` transitions mechanically re-observe Git state, diff, and worktree bytes, persisting a changed candidate before evaluating the requested transition. Unchanged observations do not add redundant candidate trace events. Low-level `capture`/`record` remain available for compatibility and diagnostics, and generic `run record` still cannot publish `candidate-observed`.
 
-The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.5. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
+The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.6. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
 
 A `skill-contract` receipt is traceability evidence, not a claim that the full durable external-operation reconciliation layer was active.
 

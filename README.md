@@ -61,7 +61,7 @@ mandatemarshal activation enable /path/to/your-project
 Use an exact release when you want reproducibility:
 
 ```bash
-mandatemarshal pin 0.2.5
+mandatemarshal pin 0.2.6
 mandatemarshal pin status
 mandatemarshal version
 ```
@@ -74,7 +74,7 @@ mandatemarshal version
 Use MandateMarshal for this project.
 ```
 
-The first use is explicit. After activation, MandateMarshal can continue for later work in the same project without making you repeat its name on every request. In v0.2.5, Skill-driven objectives also use a lightweight canonical run receipt so a FIX/PASS loop can be traced across host-context continuations without forcing the full durable engine. See [Run Receipts](docs/RUN_RECEIPTS.md) and [Codex setup](docs/CODEX_SETUP.md).
+The first use is explicit. After activation, MandateMarshal can continue for later work in the same project without making you repeat its name on every request. Since v0.2.5, Skill-driven objectives also use a lightweight canonical run receipt so a FIX/PASS loop can be traced across host-context continuations without forcing the full durable engine. See [Run Receipts](docs/RUN_RECEIPTS.md) and [Codex setup](docs/CODEX_SETUP.md).
 
 ## How it works
 
@@ -188,21 +188,22 @@ By default persistent run evidence is written under:
 
 so the target repository is not dirtied merely by being orchestrated.
 
-## Skill run receipts and 30-day trace — v0.2.5
+## Skill run receipts and lifecycle bridge — v0.2.6
 
-Normal Codex Skill orchestration can now carry one canonical MandateMarshal run identity across the full implementation/FIX/PASS loop:
+Normal Codex Skill orchestration carries one canonical MandateMarshal run identity across the full implementation/FIX/PASS loop. v0.2.6 adds `run advance` so the Skill can publish lifecycle transitions without manually carrying candidate IDs between `capture` and `record`:
 
 ```bash
 mandatemarshal run ensure /path/to/project
-mandatemarshal run capture <run-id>
+mandatemarshal run advance <run-id> parent-verified
+mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-handle>
+mandatemarshal run advance <run-id> review-verdict --verdict PASS
+mandatemarshal run advance <run-id> run-completed
 mandatemarshal run show <run-id>
-mandatemarshal run history <run-id>
-mandatemarshal run list
 ```
 
-The persistent receipt under `~/.mandatemarshal/receipts/` stores only small authority/recovery facts such as project identity, current candidate, Git HEAD, Parent verification, thread references, and Fresh Reviewer binding. `run capture` computes the candidate mechanically from Git state, diff, and worktree bytes; Git HEAD alone is not treated as the candidate. Generic `run record` cannot fabricate `candidate-observed`. Parent verification, reviewer verdict, and final completion are bracketed by re-capture so a changed worktree invalidates stale bindings.
+The persistent receipt under `~/.mandatemarshal/receipts/` stores only small authority/recovery facts such as project identity, current candidate, Git HEAD, Parent verification, thread references, and Fresh Reviewer binding. Candidate-bound `run advance` transitions mechanically re-observe Git state, diff, and worktree bytes first. A changed candidate is persisted so stale bindings fail closed; an unchanged candidate does not create a redundant `candidate-observed` trace event. Low-level `run capture` and `run record` remain available for compatibility and diagnostics.
 
-Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL is intentionally not configurable in v0.2.5; configurability may be considered later if real-world use justifies it.
+Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL remains intentionally fixed at 30 days in v0.2.6; configurability may be considered later if real-world use justifies it.
 
 A `skill-contract` receipt improves traceability but is not the same claim as durable external-operation reconciliation. See [Run Receipts](docs/RUN_RECEIPTS.md).
 
@@ -274,7 +275,7 @@ mandatemarshal pin latest
 Or pin an exact release:
 
 ```bash
-mandatemarshal pin 0.2.5
+mandatemarshal pin 0.2.6
 mandatemarshal pin status
 mandatemarshal version
 ```

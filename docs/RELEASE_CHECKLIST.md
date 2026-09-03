@@ -1,66 +1,60 @@
-# MandateMarshal v0.2.5 Release Checklist
+# MandateMarshal v0.2.6 Release Checklist
 
-This checklist is the publication gate for MandateMarshal v0.2.5.
+This checklist is the publication gate for MandateMarshal v0.2.6.
 
 ## Scope
 
-v0.2.5 is a compatibility-preserving real-world stabilization release. It does not replace the authority state machine or the v0.2 durable engine. It connects normal Skill-driven work to lightweight traceability, removes the duplicated committed runtime Skill source, and hardens operational boundaries discovered through TengoZero dogfooding.
+v0.2.6 is a compatibility-preserving stabilization hotfix from TenhoZero dogfooding. Candidate calculation remains unchanged; the release strengthens the connection from the Skill-driven lifecycle to the lightweight receipt lifecycle without expanding persistent receipts into conversation/log storage.
 
 The release is intentionally limited to:
 
-- one committed native-plugin Skill source;
-- Skill-run canonical run identity and lightweight persistent receipts;
-- fixed 30-day temporary detailed traces;
-- candidate capture, run inspection, and receipt concurrency hardening;
-- default Git commit ownership remaining with Parent unless explicitly delegated;
-- versioning/roadmap clarification for the 0.2.x stabilization line.
+- `run advance` as the preferred Skill-facing lifecycle bridge;
+- mechanical candidate re-observation for candidate-bound transitions;
+- persistence of changed candidates before a transition is evaluated, so stale bindings fail closed;
+- no redundant `candidate-observed` trace event when the candidate is unchanged;
+- existing `run capture` / `run record` retained for compatibility and diagnostics;
+- Codex default-model rolling policy documented at the adapter/configuration boundary, with no speculative Astra identifier baked into runtime configuration.
 
-## Canonical Skill source
+## Skill-run lifecycle bridge
 
-- [x] `plugins/mandatemarshal/skills/mandatemarshal/SKILL.md` is the only committed frontmatter-bearing runtime Skill source.
-- [x] `skills/orchestration/SKILL.md` is only a migration pointer and has no Skill frontmatter.
-- [x] v0.2.5+ release pin verification hashes the native-plugin Skill source.
-- [x] Legacy pre-v0.2.5 published Skill paths remain usable only for provenance verification of old global Skills, never as runtime fallback.
+- [x] `mandatemarshal run advance <run-id> implementer-started --thread <id>` records the Implementer locator.
+- [x] `parent-verified` mechanically observes and binds the exact current candidate without caller-supplied candidate ID.
+- [x] `reviewer-started` mechanically re-observes the candidate before binding the reviewer locator.
+- [x] `review-verdict` mechanically re-observes the candidate before recording `PASS | FIX | ESCALATE`.
+- [x] `run-completed` mechanically re-observes before enforcing Fresh PASS for the unchanged candidate.
+- [x] A changed candidate is persisted before a requested high-level transition is evaluated.
+- [x] An unchanged candidate does not add a redundant `candidate-observed` trace event.
+- [x] Generic `run record` still cannot fabricate `candidate-observed`.
+- [x] Low-level `run capture` / `run record` remain backward compatible.
+- [x] Persistent receipts remain structured minimal state only; prompts/conversations/large logs are not added.
 
-## Skill-run receipt contract
+## Existing authority / evidence contract
 
-- [x] `mandatemarshal run ensure <project>` creates or reuses the single active receipt for a project.
-- [x] `mandatemarshal run start <project>` refuses to create a second active receipt for the same project.
-- [x] Concurrent `ensure` calls serialize and converge on one active receipt.
-- [x] Multiple pre-existing active receipts fail closed as ambiguous rather than guessing.
-- [x] `mandatemarshal run capture <run-id>` mechanically records candidate identity from Git state/diff/worktree bytes and separately records Git HEAD when available.
-- [x] Generic `run record` cannot publish `candidate-observed` or caller-supplied Git HEAD.
-- [x] Public receipt creation is fixed to `skill-contract`; `--mode durable-runtime` is rejected instead of allowing an evidence-label spoof.
-- [x] Parent verification is bound to the current candidate.
-- [x] Fresh Reviewer `PASS` is bound to the current candidate.
-- [x] `FIX`, `ESCALATE`, or candidate mutation invalidates the old Fresh PASS as applicable.
+- [x] Parent verification remains candidate-bound.
+- [x] Fresh Reviewer PASS remains candidate-bound.
+- [x] `FIX`, `ESCALATE`, or candidate mutation invalidates old Fresh PASS as applicable.
 - [x] `run-completed` requires Fresh PASS for the exact current candidate.
-- [x] Receipt validation rejects inconsistent Parent/PASS/completion bindings.
-- [x] Run-level receipt updates use short-lived exclusive filesystem locks to prevent lost updates.
+- [x] Public receipt creation remains fixed to `skill-contract`.
+- [x] Run evidence remains outside the target repository by default.
+- [x] Detailed trace remains best-effort under the OS temp directory with fixed 30-day TTL.
+- [x] Native plugin Skill remains the single committed runtime Skill source.
+- [x] Implementers still do not own commit/tag/push unless explicitly delegated.
 
-## Trace retention contract
+## Model evolution contract
 
-- [x] Recovery/authority-critical minimal receipt state persists under `~/.mandatemarshal/receipts/` by default.
-- [x] Detailed trace is stored under the OS temp directory under `mandatemarshal/traces/`.
-- [x] Detailed trace retention is fixed at 30 days in v0.2.5.
-- [x] The 30-day TTL is not configurable in v0.2.5; later configurability is roadmap-only.
-- [x] Trace cleanup never deletes persistent receipts.
-- [x] Trace write/cleanup failure is best-effort and does not invalidate a successfully persisted receipt.
-- [x] Expired/missing trace never authorizes reconstruction of PASS or provider-side outcomes.
-
-## Git ownership contract
-
-- [x] Routine Implementer does not create commits/tags/pushes unless the packet explicitly delegates the exact repository operation.
-- [x] Complex Implementer has the same restriction.
-- [x] Fresh Reviewer remains read-only and never creates repository mutations.
-- [x] Parent owns semantic commit/checkpoint decisions by default.
+- [x] Semantic roles remain independent from concrete model generations.
+- [x] Current runtime defaults remain Luna/Max, Terra/High, Sol/High for v0.2.6.
+- [x] Roadmap records migration of Fresh Reviewer default from Sol to Astra once Astra is officially available in the relevant Codex host and its exact interface is verified.
+- [x] Future stronger appropriate frontier models may replace current defaults at the adapter/configuration boundary.
+- [x] No silent fallback to an older model is introduced.
+- [x] No speculative Astra model ID or reasoning-effort identifier is committed before release availability is known.
 
 ## Version consistency
 
-- [x] `package.json` reports `0.2.5`.
-- [x] Root Codex plugin manifest reports `0.2.5` and points at the native-plugin Skill directory.
-- [x] Marketplace plugin manifest reports `0.2.5`.
-- [x] Canonical native-plugin Skill frontmatter reports `0.2.5`.
+- [x] `package.json` reports `0.2.6`.
+- [x] Root Codex plugin manifest reports `0.2.6`.
+- [x] Marketplace/native plugin manifest reports `0.2.6`.
+- [x] Canonical native-plugin Skill frontmatter reports `0.2.6`.
 - [x] Conformance tests enforce release-version alignment and single canonical Skill-source behavior.
 
 ## Required verification
@@ -71,41 +65,45 @@ Run from the audited checkout without launching any Codex coding agent/model:
 bun run typecheck
 bun test
 bun audit
+bun run validate:config
+bun run scan:artifacts
 git diff --check
 npm pack --dry-run --json
 ```
 
+Also perform the bounded local self-security review defined by `docs/DECISIONS.md` D-024: dependency audit, trust-boundary/static inspection, secret/local-path/publication-set checks, regression/conformance tests, package surface review, and command-injection/path-boundary review. **Do not invoke Codex Security or any Codex coding/reviewer model for this release.**
+
 Required results before publication:
 
 - [x] Strict TypeScript diagnostics: `0`.
-- [x] Full Bun test suite: `103/103` pass (`384` assertions).
+- [x] Full Bun test suite: `105/105` pass (`393` assertions).
 - [x] Dependency vulnerabilities: `0`.
+- [x] Config validation passes with no warnings/errors.
+- [x] Artifact/publication scan returns no findings.
 - [x] `git diff --check`: clean.
-- [x] Package dry-run: `mandatemarshal@0.2.5`, `78` files, intended public surface only.
-- [x] Local/private artifacts such as `docs/ROADMAP.md` and `.stackmarshal/` are absent from the package/publication set.
-- [x] Publication-set scan finds no secret/credential, personal absolute path, dangerous Codex bypass flag, or stale duplicated-Skill claim.
-- [x] Self security review covers receipt path safety, token-bound locking, temp cleanup boundaries, candidate evidence, PASS binding, durable-mode labeling, release pin verification, and command injection surfaces; no unresolved material issue remains.
-
-Do not invoke Codex Security, Codex CLI coding agents, Fresh Reviewer models, or any other Codex model as part of this release publication procedure. Security review for this release is performed locally through deterministic tests, dependency/static inspection, and bounded manual code review.
+- [x] Package dry-run reports `mandatemarshal@0.2.6`, `78` files, intended public surface only.
+- [x] No secret/credential or personal absolute path is added.
+- [x] No new shell/process-execution surface is introduced by the lifecycle bridge.
+- [x] No dangerous Codex bypass behavior or duplicate runtime Skill is introduced.
+- [x] Self security review finds no unresolved material issue.
+- [x] No Codex Security, Codex coding agent, or Fresh Reviewer model was launched for this release review.
 
 ## Documentation
 
-- [x] `README.md` documents Skill-run receipts and fixed 30-day trace retention.
-- [x] `docs/RUN_RECEIPTS.md` documents persistent vs temporary evidence boundaries.
-- [x] `docs/CODEX_SETUP.md` documents Skill-run receipt commands and the single canonical Skill source.
-- [x] `docs/ARCHITECTURE.md` documents the Skill-run receipt boundary separately from `DurableEngineRuntime`.
-- [x] `docs/DECISIONS.md` records v0.2.5 traceability, Skill-source, versioning, and Git-ownership decisions.
-- [x] `SECURITY.md` documents receipt/trace trust and cleanup boundaries.
-- [x] `CHANGELOG.md` contains v0.2.5 dated 2026-09-03.
+- [x] `README.md` documents `run advance` and minimal receipt behavior.
+- [x] `docs/RUN_RECEIPTS.md` documents automatic candidate re-observation and low-level compatibility commands.
+- [x] `docs/CODEX_SETUP.md` documents v0.2.6 lifecycle commands.
+- [x] `docs/ROADMAP.md` records the Astra/future-frontier rolling model policy and v0.2.6 dogfood finding.
+- [x] `docs/DECISIONS.md` records the lifecycle bridge and model-evolution decisions.
+- [x] `CHANGELOG.md` contains v0.2.6 dated 2026-09-04.
 
 ## Publication
 
-- [x] Existing v0.1.0 through v0.2.4 releases remain untouched.
-- [ ] v0.2.5 release commit created from the audited working tree.
-- [ ] GitHub Actions passes on Ubuntu and Windows.
-- [ ] Annotated `v0.2.5` tag pushed.
-- [ ] GitHub Release `MandateMarshal v0.2.5` published from that tag.
-- [ ] Local install successfully pins `latest` to v0.2.5 without launching a Codex coding agent/model.
-- [ ] Local `mandatemarshal version` reports runtime/pin/plugin/cache/Skill 0.2.5 with `Status: OK`.
+- [x] v0.2.6 release commit created from the audited working tree.
+- [x] Clean committed candidate passes frozen-install/package smoke without launching Codex.
+- [ ] Annotated `v0.2.6` tag created and pushed.
+- [ ] GitHub Release `MandateMarshal v0.2.6` published from that tag.
+- [ ] GitHub Actions passes on Ubuntu and Windows, or any pending state is reported rather than guessed.
+- [ ] Local `mandatemarshal pin latest` / version alignment is checked without launching a Codex coding agent/model when safely available.
 
-Publication must not proceed if any deterministic gate is red or if the self security review finds an unresolved material issue.
+Publication must not proceed if any deterministic gate is red or if the local self-security review finds an unresolved material issue.

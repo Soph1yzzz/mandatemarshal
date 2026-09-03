@@ -122,13 +122,13 @@ For durable Codex operations, the CLI driver persists the Codex thread ID outsid
 
 See `docs/DURABLE_RUNTIME.md`.
 
-## Skill-run receipt boundary — v0.2.5
+## Skill-run receipt boundary — v0.2.6
 
 Skill-driven Codex work and the full `DurableEngineRuntime` are distinct execution modes. A normal Skill objective does not become a durable engine run merely because it follows MandateMarshal's authority contract.
 
-v0.2.5 adds a lightweight persistent run envelope for Skill-driven work so real FIX/PASS loops can still be traced without pretending the full durable runtime executed. `mandatemarshal run ensure <project>` creates or reuses the single active receipt for that project. Public receipt creation is fixed to `skill-contract`; a caller cannot label a normal Skill run as `durable-runtime`. Project-scoped and run-scoped short-lived filesystem locks serialize receipt creation and updates; stale receipt locks may be reclaimed only after the fixed lock-staleness window because the locked operation is local metadata publication, not an external provider action.
+v0.2.5 added a lightweight persistent run envelope for Skill-driven work so real FIX/PASS loops can still be traced without pretending the full durable runtime executed. v0.2.6 adds a high-level lifecycle bridge so the Skill can publish normal transitions without manually shuttling candidate IDs. `mandatemarshal run ensure <project>` creates or reuses the single active receipt for that project. Public receipt creation is fixed to `skill-contract`; a caller cannot label a normal Skill run as `durable-runtime`. Project-scoped and run-scoped short-lived filesystem locks serialize receipt creation and updates; stale receipt locks may be reclaimed only after the fixed lock-staleness window because the locked operation is local metadata publication, not an external provider action.
 
-`mandatemarshal run capture <run-id>` is the only CLI path that records `candidate-observed`. It mechanically derives candidate identity from Git base revision, status, diff, and worktree bytes. A caller cannot substitute an arbitrary candidate string through `run record`.
+`mandatemarshal run capture <run-id>` remains the explicit low-level CLI path that records `candidate-observed`. `run advance` uses the same mechanical repository observation internally before candidate-bound lifecycle transitions; it records `candidate-observed` only when that observation changed, then evaluates the requested transition against the observed candidate. A caller still cannot substitute an arbitrary candidate observation through `run record`.
 
 The persistent receipt under `~/.mandatemarshal/receipts/` retains only current authority/recovery facts: project/run identity, current candidate, Git HEAD locator, Parent verification binding, role/thread locators, latest reviewer verdict, and Fresh PASS binding. Detailed event trace is diagnostic-only, lives under the OS temporary directory, and has a fixed 30-day TTL. Trace persistence and cleanup are best-effort and may disappear without invalidating the persistent receipt.
 
