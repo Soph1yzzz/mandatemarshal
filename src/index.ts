@@ -13,6 +13,7 @@ export * from "./runtime/recovery";
 export * from "./runtime/durable-status";
 export * from "./runtime/project-activation";
 export * from "./runtime/version-pin";
+export * from "./runtime/run-receipt";
 export * from "./adapters/codex/adapter";
 export * from "./adapters/codex/role-mapping";
 export * from "./adapters/codex/cli-driver";

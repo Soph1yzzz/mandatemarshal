@@ -122,6 +122,20 @@ For durable Codex operations, the CLI driver persists the Codex thread ID outsid
 
 See `docs/DURABLE_RUNTIME.md`.
 
+## Skill-run receipt boundary — v0.2.5
+
+Skill-driven Codex work and the full `DurableEngineRuntime` are distinct execution modes. A normal Skill objective does not become a durable engine run merely because it follows MandateMarshal's authority contract.
+
+v0.2.5 adds a lightweight persistent run envelope for Skill-driven work so real FIX/PASS loops can still be traced without pretending the full durable runtime executed. `mandatemarshal run ensure <project>` creates or reuses the single active receipt for that project. Public receipt creation is fixed to `skill-contract`; a caller cannot label a normal Skill run as `durable-runtime`. Project-scoped and run-scoped short-lived filesystem locks serialize receipt creation and updates; stale receipt locks may be reclaimed only after the fixed lock-staleness window because the locked operation is local metadata publication, not an external provider action.
+
+`mandatemarshal run capture <run-id>` is the only CLI path that records `candidate-observed`. It mechanically derives candidate identity from Git base revision, status, diff, and worktree bytes. A caller cannot substitute an arbitrary candidate string through `run record`.
+
+The persistent receipt under `~/.mandatemarshal/receipts/` retains only current authority/recovery facts: project/run identity, current candidate, Git HEAD locator, Parent verification binding, role/thread locators, latest reviewer verdict, and Fresh PASS binding. Detailed event trace is diagnostic-only, lives under the OS temporary directory, and has a fixed 30-day TTL. Trace persistence and cleanup are best-effort and may disappear without invalidating the persistent receipt.
+
+Receipt state fails closed when candidate, Parent-verification, Fresh PASS, or completion bindings are inconsistent. A `FIX` or changed candidate clears the old PASS. `run-completed` is rejected unless the current candidate has a fresh PASS.
+
+See `docs/RUN_RECEIPTS.md`.
+
 ## Project activation boundary
 
 MandateMarshal activation is **explicit-first, project-persistent**. The first activation for a project requires explicit user selection. Runtime persistence then records activation outside the target repository under `~/.mandatemarshal/projects/` by default.

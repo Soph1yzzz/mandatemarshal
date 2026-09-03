@@ -24,7 +24,7 @@ mandatemarshal pin latest
 to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
 
 ```bash
-mandatemarshal pin 0.2.4
+mandatemarshal pin 0.2.5
 ```
 
 for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift.
@@ -34,7 +34,7 @@ for a reproducible exact version. `mandatemarshal pin status` reports the record
 The pin flow:
 
 1. resolves and verifies a published MandateMarshal GitHub Release before mutating Codex state;
-2. verifies the release's plugin manifest and canonical Skill metadata report the same version;
+2. verifies the release's plugin manifest and the single canonical Skill at `plugins/mandatemarshal/skills/mandatemarshal/SKILL.md` report the same version;
 3. checks any pre-existing global `~/.codex/skills/mandatemarshal/SKILL.md` before mutation; only an official released MandateMarshal Skill whose LF-normalized content hash matches its own release is eligible for automatic removal, while customized content blocks pinning;
 4. configures the MandateMarshal Git repository as a Codex plugin marketplace at the exact release tag;
 5. installs the `mandatemarshal@mandatemarshal` plugin from that marketplace;
@@ -55,7 +55,7 @@ Codex supports project-scoped custom agent definitions under:
 <target-repository>/.codex/agents/*.toml
 ```
 
-MandateMarshal ships reviewed templates in `templates/codex-agents/`.
+MandateMarshal ships reviewed templates in `templates/codex-agents/`. Implementer profiles do not create Git commits, tags, or pushes unless the Parent packet explicitly delegates that exact repository operation; semantic commit/checkpoint ownership stays with Parent by default.
 
 Install them into a target repository:
 
@@ -108,8 +108,10 @@ plugins/mandatemarshal/.codex-plugin/plugin.json
 plugins/mandatemarshal/skills/mandatemarshal/SKILL.md
 plugins/mandatemarshal/agents/*.toml
 .codex-plugin/plugin.json
-skills/orchestration/SKILL.md
+skills/orchestration/SKILL.md   # migration pointer only; no Skill frontmatter
 ```
+
+`plugins/mandatemarshal/skills/mandatemarshal/` is the single committed runtime Skill source. The historical root `skills/orchestration/` path is deliberately a frontmatter-free migration pointer rather than a second committed Skill copy.
 
 The Skill is **explicit-first, project-persistent**. An unregistered project requires an explicit first selection. That selection may be persisted outside the target repository with:
 
@@ -120,6 +122,24 @@ mandatemarshal activation enable /path/to/project
 Later coding requests in the same project may continue without repeating the brand. Explicit disable is available with `mandatemarshal activation disable /path/to/project`.
 
 The registry defaults to `~/.mandatemarshal/projects/`, so activation does not dirty the target repository. v0.1 identifies a project by canonical path; moving/renaming it may require explicit activation again.
+
+## Skill-run receipts — v0.2.5
+
+When the packaged CLI is available, Skill-driven coding objectives use a lightweight canonical run envelope:
+
+```bash
+mandatemarshal run ensure /path/to/project
+mandatemarshal run capture <run-id>
+mandatemarshal run show <run-id>
+mandatemarshal run history <run-id>
+mandatemarshal run list
+```
+
+`ensure` reuses the only active receipt for the canonical project, creates one when none exists, serializes concurrent creation with a short-lived project lock, and fails on ambiguous multiple active receipts. `capture` mechanically binds Git state, diff, and worktree bytes into the candidate identity and records Git HEAD separately when available. Generic `run record` cannot publish `candidate-observed`; Parent verification, reviewer verdict, and completion should each be preceded by a fresh capture so candidate mutation invalidates stale bindings.
+
+The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.5. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
+
+A `skill-contract` receipt is traceability evidence, not a claim that the full durable external-operation reconciliation layer was active.
 
 Codex may choose which Skills to load before MandateMarshal code can inspect the external registry. Therefore registry-driven rediscovery across every brand-new Codex context is not guaranteed in v0.1; current-context continuation is the fallback when pre-dispatch lookup is unavailable.
 

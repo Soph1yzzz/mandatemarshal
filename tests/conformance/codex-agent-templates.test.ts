@@ -23,12 +23,11 @@ test("Codex agent templates pin approved v0.1 mappings", async () => {
   expect(reviewer).toContain('sandbox_mode = "read-only"');
 });
 
-test("package, root plugin, marketplace plugin, and Skill metadata share one release version", async () => {
-  const [manifestText, packagedManifestText, packageText, skillText, packagedSkillText] = await Promise.all([
+test("package, root plugin, marketplace plugin, and canonical plugin Skill metadata share one release version", async () => {
+  const [manifestText, packagedManifestText, packageText, packagedSkillText] = await Promise.all([
     readFile(new URL("../../.codex-plugin/plugin.json", import.meta.url), "utf8"),
     readFile(new URL("../../plugins/mandatemarshal/.codex-plugin/plugin.json", import.meta.url), "utf8"),
     readFile(new URL("../../package.json", import.meta.url), "utf8"),
-    readFile(new URL("../../skills/orchestration/SKILL.md", import.meta.url), "utf8"),
     readFile(new URL("../../plugins/mandatemarshal/skills/mandatemarshal/SKILL.md", import.meta.url), "utf8"),
   ]);
   const manifest = JSON.parse(manifestText) as { name: string; version: string; skills: string };
@@ -36,11 +35,12 @@ test("package, root plugin, marketplace plugin, and Skill metadata share one rel
   const packageJson = JSON.parse(packageText) as { name: string; version: string };
 
   expect(manifest.name).toBe("mandatemarshal");
+  expect(packagedManifest.name).toBe("mandatemarshal");
   expect(manifest.version).toBe(packageJson.version);
-  expect(packagedManifest).toEqual(manifest);
-  expect(skillVersion(skillText)).toBe(packageJson.version);
+  expect(packagedManifest.version).toBe(packageJson.version);
   expect(skillVersion(packagedSkillText)).toBe(packageJson.version);
-  expect(manifest.skills).toBe("./skills/");
+  expect(manifest.skills).toBe("./plugins/mandatemarshal/skills/");
+  expect(packagedManifest.skills).toBe("./skills/");
 });
 
 test("Codex marketplace exposes the dedicated MandateMarshal plugin package", async () => {
@@ -74,22 +74,23 @@ test("all bundled agent profiles stay byte-identical to installer templates", as
   }
 });
 
-test("marketplace Skill content and references stay byte-identical to canonical Skill files", async () => {
-  for (const [canonical, packaged] of [
-    ["../../skills/orchestration/SKILL.md", "../../plugins/mandatemarshal/skills/mandatemarshal/SKILL.md"],
-    [
-      "../../skills/orchestration/references/portable-entry.md",
-      "../../plugins/mandatemarshal/skills/mandatemarshal/references/portable-entry.md",
-    ],
-    [
-      "../../skills/orchestration/references/role-contracts.md",
-      "../../plugins/mandatemarshal/skills/mandatemarshal/references/role-contracts.md",
-    ],
-  ] as const) {
-    const [source, copy] = await Promise.all([
-      readFile(new URL(canonical, import.meta.url), "utf8"),
-      readFile(new URL(packaged, import.meta.url), "utf8"),
-    ]);
-    expect(copy).toBe(source);
+test("plugin Skill is the single committed canonical Skill source", async () => {
+  const canonical = await readFile(
+    new URL("../../plugins/mandatemarshal/skills/mandatemarshal/SKILL.md", import.meta.url),
+    "utf8",
+  );
+  expect(canonical).toContain("# MandateMarshal");
+  expect(skillVersion(canonical)).toBeDefined();
+  for (const reference of ["portable-entry.md", "role-contracts.md"]) {
+    expect(
+      await readFile(
+        new URL(`../../plugins/mandatemarshal/skills/mandatemarshal/references/${reference}`, import.meta.url),
+        "utf8",
+      ),
+    ).not.toBeEmpty();
   }
+
+  const legacyPointer = await readFile(new URL("../../skills/orchestration/SKILL.md", import.meta.url), "utf8");
+  expect(skillVersion(legacyPointer)).toBeUndefined();
+  expect(legacyPointer).toContain("plugins/mandatemarshal/skills/mandatemarshal/SKILL.md");
 });

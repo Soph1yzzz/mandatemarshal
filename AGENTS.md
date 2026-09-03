@@ -30,6 +30,10 @@ Build a portable, authority-aware coding-agent orchestration system where agents
 20. Durable state is append-only/replayable where possible; corrupt or ambiguous recovery evidence fails closed.
 21. A durable run has one active writer. Expired-lease takeover must be explicit and must not let a stale owner release the replacement lease.
 22. Provider session resumability is not equivalent to side-effect-safe retry. Incomplete provider sessions remain reconciliation-required unless completion or non-execution can be observed.
+23. When the packaged CLI is available, Skill-driven coding objectives use one canonical run receipt across the full FIX/PASS loop; do not invent run IDs or silently fork a continuation into a second active receipt.
+24. Recovery-critical receipt state is persistent under `~/.mandatemarshal/`; detailed developer trace is temporary, uses the OS temp directory, and has a fixed 30-day TTL in v0.2.5.
+25. `plugins/mandatemarshal/skills/mandatemarshal/` is the single committed runtime Skill source. `skills/orchestration/` is migration-pointer material only and must not regain Skill frontmatter or a duplicate runtime copy.
+26. Implementers do not create Git commits, tags, or pushes unless the implementation packet explicitly delegates that exact operation; Parent owns semantic commit/checkpoint decisions by default.
 
 ## Approved R2 implementation clarifications
 

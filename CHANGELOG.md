@@ -4,6 +4,27 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-09-03
+
+### Added
+
+- Added lightweight Skill-run receipts with canonical project/run identity plus `run ensure`, `run capture`, `run list`, `run show`, and `run history` inspection paths.
+- Added fixed 30-day temporary detailed traces under the OS temp directory while keeping recovery-critical receipt state persistent under `~/.mandatemarshal/receipts/`.
+- Added mechanical candidate capture for Skill-run receipts using Git state, diff, and worktree bytes rather than caller-supplied candidate identity.
+
+### Changed
+
+- The native plugin Skill under `plugins/mandatemarshal/skills/mandatemarshal/` is now the single committed runtime Skill source; the historical root Skill path is only a non-Skill migration pointer.
+- Routine and complex Implementers no longer own Git commit/tag/push decisions by default; Parent owns semantic commit/checkpoint decisions unless a packet explicitly delegates the exact repository operation.
+- 0.2.x is documented as the compatibility-preserving real-world stabilization line, with v0.3 reserved for worktree isolation, semantic checkpoints, and candidate lineage.
+
+### Fixed
+
+- Serialized project-level receipt creation and run-level receipt updates with short-lived filesystem locks so concurrent host contexts cannot silently create duplicate active receipts or lose event updates.
+- Generic `run record` can no longer publish `candidate-observed`; only mechanical `run capture` may bind a candidate.
+- Public receipt creation is fixed to `skill-contract` and refuses duplicate active `run start` creation, preventing an ordinary Skill run from being mislabeled as durable or forked accidentally.
+- Temporary trace write/cleanup failures no longer invalidate persistent receipts, and receipt validation now fails closed on inconsistent Parent/Fresh-PASS/completion bindings.
+
 ## [0.2.4] - 2026-09-03
 
 ### Fixed

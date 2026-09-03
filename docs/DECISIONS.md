@@ -180,3 +180,27 @@ The pin record lives outside target repositories under `~/.mandatemarshal/pin.js
 **Decision:** Pinning computes `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` directly and requires that exact cache to contain the expected plugin manifest version and a Skill whose version and LF-normalized content SHA-256 match the published release. MandateMarshal does not search sibling caches or fall back to `~/.codex/skills/mandatemarshal` when that exact cache is absent or inconsistent.
 
 A pre-existing global MandateMarshal `SKILL.md` is removed only when its LF-normalized content matches the official Skill from its own published release. Customized or unverifiable same-name global Skill content causes pinning to stop before Codex installation state is changed, and neighboring files are left untouched. Marketplace checkout remains the pinned CLI runtime source; Skill authority and CLI runtime source are recorded separately.
+
+## v0.2.5 real-world traceability stabilization — 2026-09-03
+
+### D-032 — The native plugin Skill is the single committed Skill source
+
+**Decision:** The runtime Skill is committed only under `plugins/mandatemarshal/skills/mandatemarshal/`. The historical `skills/orchestration/` path may remain as a non-Skill migration pointer, but it must not contain a second frontmatter-bearing copy of the runtime Skill or its references. Release pin verification uses the native plugin Skill as canonical for v0.2.5+ while retaining the old published path only to verify provenance of legacy pre-v0.2.5 global Skills.
+
+### D-033 — Skill-driven work gets a lightweight canonical run receipt
+
+**Decision:** A Skill-driven objective uses one project-scoped active receipt across its FIX/PASS loop. `run ensure` reuses the only active project receipt and fails closed when multiple active receipts make continuation ambiguous. `run capture` is the only CLI path that records candidate observation and uses MandateMarshal's mechanical repository-candidate calculation rather than caller-supplied candidate identity. Public `run start` / `run ensure` always create `skill-contract` receipts; a caller cannot label an ordinary Skill run as `durable-runtime` without actual durable-engine integration.
+
+Receipt updates are serialized with short-lived filesystem locks so concurrent host contexts cannot silently overwrite event sequence/state. A stale receipt lock may be reclaimed only after the fixed local-metadata staleness window; this does not authorize retry of any external provider operation.
+
+### D-034 — Recovery-critical receipt state persists; detailed trace is temporary
+
+**Decision:** Minimal current state required to bind project, candidate, Parent verification, reviewer verdict, thread locator, and Fresh PASS persists under `~/.mandatemarshal/receipts/`. Detailed structured diagnostic trace is best-effort under the OS temp directory and expires after a fixed 30 days. Trace failure or expiry never authorizes loss or reconstruction of persistent authority state. v0.2.5 does not expose a TTL setting; configurability may be considered only after real-world need is demonstrated.
+
+### D-035 — 0.2.x is the compatibility-preserving stabilization line
+
+**Decision:** Until the next architecture milestone, 0.2.x releases may add backward-compatible diagnostics, run traceability, packaging fixes, and operational hardening discovered by TengoZero dogfooding. v0.3.0 remains reserved for the larger worktree-isolation / semantic-checkpoint / candidate-lineage milestone rather than being consumed by patch-level stabilization.
+
+### D-036 — Implementers do not own semantic Git commits by default
+
+**Decision:** Routine and complex Implementers may modify their owned worktree paths but must not create commits, tags, or pushes unless the Parent packet explicitly delegates that exact repository operation. Parent owns semantic commit/checkpoint decisions by default; Fresh Reviewer remains read-only and never commits.

@@ -1,6 +1,6 @@
 ---
 name: mandatemarshal
-version: "0.2.4"
+version: "0.2.5"
 description: >
   Authority-aware coding-agent orchestration with explicit Owner/Parent/Implementer/Fresh-Reviewer
   boundaries, deterministic execution evidence, mandatory fresh QA, and no silent model/role fallback.
@@ -24,6 +24,31 @@ MandateMarshal is **explicit-first, project-persistent**:
 5. Never carry activation from one project to another merely because the conversation continues.
 
 The registry lives outside the target repository under `~/.mandatemarshal/projects/` by default, so activation must not dirty the project.
+
+## Run identity and lightweight receipts
+
+When the packaged CLI is available, every Parent-owned coding objective should have one canonical MandateMarshal run identity even when orchestration is being driven through this Skill rather than `DurableEngineRuntime`.
+
+At the start or continuation of the objective, run:
+
+`mandatemarshal run ensure <project-root>`
+
+`ensure` reuses the only active receipt for that project, creates one when none exists, and fails on ambiguous multiple active receipts. Keep the returned `runId` for the whole FIX/PASS loop and across host-context continuations.
+
+Record only structured lifecycle facts; do not paste raw prompts, secrets, or large logs into the persistent receipt:
+
+1. after an Implementer is launched and its host handle/thread is known: `mandatemarshal run record <run-id> implementer-started --thread <id>`;
+2. after implementation or correction: `mandatemarshal run capture <run-id>` to mechanically bind the current worktree candidate and Git HEAD;
+3. after Parent inspects/verifies that candidate, run `run capture` again; only if the candidate is unchanged record `parent-verified` for that exact candidate;
+4. after Fresh Reviewer launch: record `reviewer-started` with the exact candidate and reviewer thread/handle;
+5. after the reviewer finishes, run `run capture` again before recording its verdict; any candidate change invalidates the old Parent binding and prevents the old verdict from being attached to the new worktree;
+6. record `review-verdict` with `PASS`, `FIX`, or `ESCALATE` for that unchanged candidate;
+7. on `FIX`, record `correction-started`, correct the bounded issue, capture the new candidate, verify/re-capture it, and use a new Fresh Reviewer;
+8. after `PASS`, run `run capture` once more immediately before completion; only an unchanged candidate retains that PASS and may be recorded as `run-completed`. Use `run-aborted` only for an actual abandoned run.
+
+`mandatemarshal run list`, `run show <run-id>`, and `run history <run-id>` provide developer inspection. Recovery-critical latest state is persistent under `~/.mandatemarshal/`; detailed structured trace is temporary under the OS temp directory and has a fixed 30-day TTL. Trace expiry must never erase the persistent facts needed to bind candidate, Parent verification, unresolved state, or Fresh PASS.
+
+If the packaged CLI is unavailable, do not invent a receipt or run ID. Continue only under the host evidence available to the current contract and explicitly report that MandateMarshal receipt traceability was unavailable.
 
 ### Current host limitation
 
@@ -79,6 +104,12 @@ Before delegation, provide:
 
 An incomplete packet must not enter implementation.
 
+## Git commit ownership
+
+A bounded Implementer changes files; it does not create Git commits, tags, or pushes unless the implementation packet explicitly delegates that exact repository operation. Parent owns semantic commit/checkpoint decisions by default. A `FIX` correction stays inside the same MandateMarshal run and must not create an extra Git commit merely because a role handoff occurred.
+
+Fresh Reviewer is always read-only and never commits.
+
 ## Evidence
 
 Prefer deterministic collection for deterministic facts:
@@ -117,6 +148,7 @@ Report compliant completion only when:
 - required deterministic verification/evidence is available;
 - final fresh reviewer returned PASS for the exact candidate;
 - candidate remained unchanged after review;
-- no escalation or Owner decision is pending.
+- no escalation or Owner decision is pending;
+- when the packaged receipt CLI is available, the run receipt is completed for that exact candidate.
 
 Read `references/role-contracts.md` and `references/portable-entry.md` for compact host-neutral contracts.

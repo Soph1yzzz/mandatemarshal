@@ -76,17 +76,32 @@ export async function captureGitDiff(root: string): Promise<string> {
   return result.code === 0 ? result.stdout : "";
 }
 
-export async function computeRepositoryCandidateId(root: string): Promise<string> {
+export interface RepositoryCandidateObservation {
+  candidateId: string;
+  state: RepositoryState;
+}
+
+export async function observeRepositoryCandidate(root: string): Promise<RepositoryCandidateObservation> {
   const state = await captureRepositoryState(root);
   if (!state.available) {
-    return candidateIdFromParts(["non-git", state.digest ?? "NO_DIGEST"]);
+    return {
+      candidateId: candidateIdFromParts(["non-git", state.digest ?? "NO_DIGEST"]),
+      state,
+    };
   }
   const diff = await captureGitDiff(root);
-  return candidateIdFromParts([
-    "git",
-    state.baseRevision ?? "NO_BASE",
-    state.status?.join("\n") ?? "",
-    state.digest ?? "NO_DIGEST",
-    diff,
-  ]);
+  return {
+    candidateId: candidateIdFromParts([
+      "git",
+      state.baseRevision ?? "NO_BASE",
+      state.status?.join("\n") ?? "",
+      state.digest ?? "NO_DIGEST",
+      diff,
+    ]),
+    state,
+  };
+}
+
+export async function computeRepositoryCandidateId(root: string): Promise<string> {
+  return (await observeRepositoryCandidate(root)).candidateId;
 }

@@ -144,11 +144,30 @@ Mitigations:
 - the exact versioned cache path `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` is computed deterministically and its plugin manifest version, Skill version, and LF-normalized Skill SHA-256 are verified against the published release;
 - no alternative cache directory or legacy global Skill is searched as a fallback when the canonical cache is missing or mismatched;
 - a pre-existing global `~/.codex/skills/mandatemarshal/SKILL.md` is removed only after its LF-normalized content hash is proven identical to the official Skill from its own published release; customized/unverifiable content blocks pinning before Codex installation state is changed, and neighboring files are not deleted;
-- package, root plugin, marketplace plugin, canonical Skill, marketplace Skill, and bundled agent copies are regression-tested for version/content drift;
+- package, root plugin, marketplace plugin, the single canonical native-plugin Skill, and bundled agent copies are regression-tested for version/content drift;
 - pin state is stored outside target repositories under `~/.mandatemarshal/pin.json` and records marketplace/runtime checkout separately from the canonical versioned plugin cache;
 - normal CLI commands delegate to the pinned marketplace checkout while runtime Skill authority remains the verified versioned plugin cache.
 
-The GitHub repository/release account and the local same-user Codex/MandateMarshal homes are trusted distribution surfaces. v0.2.4 does not add independent release-signature verification beyond Git tag/release, metadata consistency, and cache Skill hash checks.
+The GitHub repository/release account and the local same-user Codex/MandateMarshal homes are trusted distribution surfaces. v0.2.5 does not add independent release-signature verification beyond Git tag/release, metadata consistency, and cache Skill hash checks.
+
+### Skill-run receipts and temporary diagnostic traces
+
+v0.2.5 separates persistent authority/recovery metadata from temporary developer diagnostics.
+
+Mitigations:
+
+- receipt/trace filenames accept only safe run IDs and remain under configured roots;
+- `run ensure` and receipt updates use short-lived exclusive filesystem locks to prevent duplicate active creation and lost updates; lock release is token-bound so a stale owner cannot delete a replacement lock;
+- generic `run record` cannot publish `candidate-observed`; `run capture` computes candidate identity from repository state, diff, and worktree bytes;
+- public receipt creation is fixed to `skill-contract`; callers cannot claim `durable-runtime` by passing a mode label without real durable-engine integration;
+- receipt validation rejects inconsistent Parent-verification, Fresh-PASS, and completed-state bindings;
+- receipt/trace directories request `0700` and files request `0600` where supported;
+- persistent minimal receipts under `~/.mandatemarshal/receipts/` have no trace TTL;
+- detailed traces live under the OS temp directory, are best-effort, and have a fixed 30-day TTL; cleanup only removes trace filenames tied to an existing safe MandateMarshal receipt ID, not arbitrary `.jsonl` files in a configured trace root;
+- trace failure or expiry never authorizes reconstruction of a PASS or an external-operation outcome;
+- stale receipt-lock cleanup applies only to local metadata publication, never to provider-side operation retry authority.
+
+These receipts remain same-user trust surfaces. v0.2.5 does not claim protection against a process that already has arbitrary write access to the user's account.
 
 ## Secrets and evidence
 

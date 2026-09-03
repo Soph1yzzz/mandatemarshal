@@ -6,6 +6,8 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 const REPOSITORY = "Soph1yzzz/mandatemarshal";
 const MARKETPLACE = "mandatemarshal";
 const PLUGIN_SELECTOR = "mandatemarshal@mandatemarshal";
+const PUBLISHED_SKILL_PATH = "plugins/mandatemarshal/skills/mandatemarshal/SKILL.md";
+const LEGACY_PUBLISHED_SKILL_PATH = "skills/orchestration/SKILL.md";
 const PIN_STATE_SCHEMA = 2 as const;
 const PIN_EXEC_GUARD = "MANDATEMARSHAL_PINNED_EXEC";
 
@@ -350,7 +352,7 @@ async function verifyPublishedTarget(
   }
 
   const skillResponse = await fetchImpl(
-    `https://raw.githubusercontent.com/${REPOSITORY}/${encodeURIComponent(ref)}/skills/orchestration/SKILL.md`,
+    `https://raw.githubusercontent.com/${REPOSITORY}/${encodeURIComponent(ref)}/${PUBLISHED_SKILL_PATH}`,
     { headers: { "User-Agent": "MandateMarshal" } },
   );
   if (!skillResponse.ok) throw new Error(`PIN_TARGET_SKILL_MISSING:${ref}`);
@@ -453,10 +455,16 @@ async function inspectLegacySkillForCleanup(
     headers: { Accept: "application/vnd.github+json", "User-Agent": "MandateMarshal" },
   });
   if (!release.ok) throw new Error(`LEGACY_SKILL_CONFLICT:${skillPath}:unreleased-version-${version}`);
-  const response = await fetchImpl(
-    `https://raw.githubusercontent.com/${REPOSITORY}/v${version}/skills/orchestration/SKILL.md`,
+  let response = await fetchImpl(
+    `https://raw.githubusercontent.com/${REPOSITORY}/v${version}/${PUBLISHED_SKILL_PATH}`,
     { headers: { "User-Agent": "MandateMarshal" } },
   );
+  if (!response.ok) {
+    response = await fetchImpl(
+      `https://raw.githubusercontent.com/${REPOSITORY}/v${version}/${LEGACY_PUBLISHED_SKILL_PATH}`,
+      { headers: { "User-Agent": "MandateMarshal" } },
+    );
+  }
   if (!response.ok) throw new Error(`LEGACY_SKILL_CONFLICT:${skillPath}:unverified-version-${version}`);
   const published = await response.text();
   if (skillSha256(content) !== skillSha256(published)) {

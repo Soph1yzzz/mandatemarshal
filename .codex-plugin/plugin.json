@@ -1,6 +1,6 @@
 {
   "name": "mandatemarshal",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Authority-aware orchestration for coding agents: bounded autonomy, explicit decision ownership, deterministic evidence, and mandatory fresh QA.",
   "license": "MIT",
   "keywords": [
@@ -11,7 +11,7 @@
     "qa",
     "multi-agent"
   ],
-  "skills": "./skills/",
+  "skills": "./plugins/mandatemarshal/skills/",
   "interface": {
     "displayName": "MandateMarshal",
     "shortDescription": "Autonomy without unintended authority",

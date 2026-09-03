@@ -61,7 +61,7 @@ mandatemarshal activation enable /path/to/your-project
 Use an exact release when you want reproducibility:
 
 ```bash
-mandatemarshal pin 0.2.4
+mandatemarshal pin 0.2.5
 mandatemarshal pin status
 mandatemarshal version
 ```
@@ -74,7 +74,7 @@ mandatemarshal version
 Use MandateMarshal for this project.
 ```
 
-The first use is explicit. After activation, MandateMarshal can continue for later work in the same project without making you repeat its name on every request. See [Codex setup](docs/CODEX_SETUP.md) for plugin/Skill packaging, exact model mappings, and the host-discovery caveat.
+The first use is explicit. After activation, MandateMarshal can continue for later work in the same project without making you repeat its name on every request. In v0.2.5, Skill-driven objectives also use a lightweight canonical run receipt so a FIX/PASS loop can be traced across host-context continuations without forcing the full durable engine. See [Run Receipts](docs/RUN_RECEIPTS.md) and [Codex setup](docs/CODEX_SETUP.md).
 
 ## How it works
 
@@ -123,9 +123,9 @@ That hierarchy is the concrete expression of the rule above: implementation auth
 | --- | --- | --- |
 | User / Owner | Project-level goals, Owner Contracts, exceptions, permanent and materially irreversible decisions | Be forced to decide routine implementation detail |
 | Parent Orchestrator | Architecture, decomposition, semantic routing, verification, review handling, final acceptance | Silently mutate Owner Contracts |
-| Routine Implementer | Bounded implementation inside a settled packet | Redesign architecture or self-promote lanes |
-| Complex Implementer | Higher-context bounded implementation | Treat complexity as permission to change Owner policy |
-| Fresh Reviewer | Read-only QA/code/execution-contract findings | Implement fixes or act as a second architect |
+| Routine Implementer | Bounded implementation inside a settled packet | Redesign architecture, self-promote lanes, or create Git commits/tags/pushes unless explicitly delegated |
+| Complex Implementer | Higher-context bounded implementation | Treat complexity as permission to change Owner policy or create repository commits by default |
+| Fresh Reviewer | Read-only QA/code/execution-contract findings | Implement fixes, mutate the repository, or act as a second architect |
 
 Reviewer verdicts are exactly:
 
@@ -187,6 +187,24 @@ By default persistent run evidence is written under:
 ```
 
 so the target repository is not dirtied merely by being orchestrated.
+
+## Skill run receipts and 30-day trace — v0.2.5
+
+Normal Codex Skill orchestration can now carry one canonical MandateMarshal run identity across the full implementation/FIX/PASS loop:
+
+```bash
+mandatemarshal run ensure /path/to/project
+mandatemarshal run capture <run-id>
+mandatemarshal run show <run-id>
+mandatemarshal run history <run-id>
+mandatemarshal run list
+```
+
+The persistent receipt under `~/.mandatemarshal/receipts/` stores only small authority/recovery facts such as project identity, current candidate, Git HEAD, Parent verification, thread references, and Fresh Reviewer binding. `run capture` computes the candidate mechanically from Git state, diff, and worktree bytes; Git HEAD alone is not treated as the candidate. Generic `run record` cannot fabricate `candidate-observed`. Parent verification, reviewer verdict, and final completion are bracketed by re-capture so a changed worktree invalidates stale bindings.
+
+Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL is intentionally not configurable in v0.2.5; configurability may be considered later if real-world use justifies it.
+
+A `skill-contract` receipt improves traceability but is not the same claim as durable external-operation reconciliation. See [Run Receipts](docs/RUN_RECEIPTS.md).
 
 ## Durable crash recovery — v0.2
 
@@ -256,7 +274,7 @@ mandatemarshal pin latest
 Or pin an exact release:
 
 ```bash
-mandatemarshal pin 0.2.4
+mandatemarshal pin 0.2.5
 mandatemarshal pin status
 mandatemarshal version
 ```
@@ -294,10 +312,12 @@ The repository includes both the source packaging and a Codex marketplace packag
 .codex-plugin/plugin.json
 plugins/mandatemarshal/.codex-plugin/plugin.json
 plugins/mandatemarshal/skills/mandatemarshal/
-plugins/mandatemarshal/agents/
-skills/orchestration/SKILL.md
-skills/orchestration/references/
+plugins/mandatemarshal/agents/                 # bundled agent profiles
+skills/orchestration/SKILL.md                  # migration pointer only; not a runtime Skill
+skills/orchestration/references/               # migration pointers only
 ```
+
+`plugins/mandatemarshal/skills/mandatemarshal/` is the **single committed runtime Skill source**. The historical `skills/orchestration/` path intentionally contains only frontmatter-free migration pointers, avoiding two committed copies of the same Skill while keeping old repository links understandable.
 
 MandateMarshal uses **explicit-first, project-persistent activation**. An unregistered project does not activate automatically. The first use requires an explicit user selection; after that, the same project can continue under MandateMarshal without repeating the brand on every request until explicitly disabled.
 
@@ -402,6 +422,10 @@ Run:
 ```bash
 bun test
 ```
+
+## Pre-1.0 versioning
+
+MandateMarshal uses the 0.x line as architecture milestones rather than treating every backward-compatible operational improvement as a new minor architecture. The current `0.2.x` line is reserved for compatibility-preserving real-world stabilization: traceability, packaging, recovery diagnostics, and bugs reproduced through dogfooding. `0.3.0` is reserved for the larger worktree-per-run, semantic-checkpoint, and candidate-lineage milestone.
 
 ## Claude Code status
 

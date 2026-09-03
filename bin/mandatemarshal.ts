@@ -10,6 +10,17 @@ import {
 import { defaultDurableRunRoot } from "../src/runtime/durable-run-store";
 import { inspectDurableRun, recordResumeRequest } from "../src/runtime/durable-status";
 import {
+  captureRunCandidate,
+  ensureRunReceipt,
+  listRunReceipts,
+  readRunHistory,
+  readRunReceipt,
+  recordRunReceiptEvent,
+  startRunReceipt,
+  type RunReceiptEventInput,
+  type RunReceiptEventType,
+} from "../src/runtime/run-receipt";
+import {
   inspectMandateMarshalPin,
   inspectMandateMarshalVersion,
   maybeDelegateToPinnedCli,
@@ -28,7 +39,7 @@ if (group === "version" || group === "--version" || group === "-v") {
 } else if (group === "activation") {
   await handleActivation(action, targetArg);
 } else if (group === "run") {
-  await handleRun(action, targetArg);
+  await handleRun(action, targetArg, args[3]);
 } else if (group === "pin") {
   await handlePin(action);
 } else {
@@ -88,22 +99,70 @@ async function handleActivation(action: string | undefined, targetArg: string | 
   }
 }
 
-async function handleRun(action: string | undefined, runId: string | undefined): Promise<void> {
-  if (!runId?.trim()) {
-    printUsage();
-    process.exitCode = 2;
-    return;
-  }
-  const root = resolve(readFlagValue("--root") ?? defaultDurableRunRoot());
+async function handleRun(action: string | undefined, targetArg: string | undefined, eventArg: string | undefined): Promise<void> {
+  const receiptRootFlag = readFlagValue("--receipt-root");
+  const traceRootFlag = readFlagValue("--trace-root");
+  const receiptOptions = {
+    ...(receiptRootFlag === undefined ? {} : { storageRoot: resolve(receiptRootFlag) }),
+    ...(traceRootFlag === undefined ? {} : { traceRoot: resolve(traceRootFlag) }),
+  };
+
   switch (action) {
-    case "status": {
-      const status = await inspectDurableRun(runId, root);
-      console.log(JSON.stringify(status, null, 2));
-      process.exitCode = status.resumeStatus === "reconciliation-required" ? 4 : 0;
+    case "start":
+    case "ensure": {
+      const projectPath = targetArg && !targetArg.startsWith("--") ? targetArg : process.cwd();
+      if (readFlagValue("--mode") !== undefined) throw new Error("RUN_RECEIPT_MODE_OVERRIDE_UNAVAILABLE");
+      if (action === "ensure") {
+        console.log(JSON.stringify(await ensureRunReceipt(projectPath, "skill-contract", receiptOptions), null, 2));
+      } else {
+        console.log(JSON.stringify(await startRunReceipt(projectPath, "skill-contract", receiptOptions), null, 2));
+      }
       return;
     }
+    case "list": {
+      console.log(JSON.stringify({ schemaVersion: 1, runs: await listRunReceipts(receiptOptions) }, null, 2));
+      return;
+    }
+    case "show": {
+      requireRunId(targetArg);
+      console.log(JSON.stringify(await readRunReceipt(targetArg, receiptOptions), null, 2));
+      return;
+    }
+    case "history": {
+      requireRunId(targetArg);
+      console.log(JSON.stringify(await readRunHistory(targetArg, receiptOptions), null, 2));
+      return;
+    }
+    case "capture": {
+      requireRunId(targetArg);
+      console.log(JSON.stringify(await captureRunCandidate(targetArg, receiptOptions), null, 2));
+      return;
+    }
+    case "record": {
+      requireRunId(targetArg);
+      const event = parseRunReceiptEvent(eventArg);
+      const candidate = readFlagValue("--candidate");
+      const thread = readFlagValue("--thread");
+      const verdict = readFlagValue("--verdict");
+      const input: RunReceiptEventInput = {
+        ...(candidate === undefined ? {} : { candidateId: candidate }),
+        ...(thread === undefined ? {} : { threadId: thread }),
+        ...(verdict === undefined ? {} : { verdict: parseVerdict(verdict) }),
+      };
+      console.log(JSON.stringify(await recordRunReceiptEvent(targetArg, event, input, receiptOptions), null, 2));
+      return;
+    }
+    case "status":
     case "resume": {
-      const status = await recordResumeRequest(runId, root);
+      requireRunId(targetArg);
+      const root = resolve(readFlagValue("--root") ?? defaultDurableRunRoot());
+      if (action === "status") {
+        const status = await inspectDurableRun(targetArg, root);
+        console.log(JSON.stringify(status, null, 2));
+        process.exitCode = status.resumeStatus === "reconciliation-required" ? 4 : 0;
+        return;
+      }
+      const status = await recordResumeRequest(targetArg, root);
       console.log(JSON.stringify(status, null, 2));
       process.exitCode = status.resumeStatus === "ready" ? 0 : status.resumeStatus === "terminal" ? 3 : 4;
       return;
@@ -112,6 +171,33 @@ async function handleRun(action: string | undefined, runId: string | undefined):
       printUsage();
       process.exitCode = 2;
   }
+}
+
+function requireRunId(runId: string | undefined): asserts runId is string {
+  if (!runId?.trim()) {
+    printUsage();
+    throw new Error("RUN_ID_REQUIRED");
+  }
+}
+
+function parseRunReceiptEvent(value: string | undefined): Exclude<RunReceiptEventType, "run-started"> {
+  if (
+    value === "implementer-started" ||
+    value === "parent-verified" ||
+    value === "reviewer-started" ||
+    value === "review-verdict" ||
+    value === "correction-started" ||
+    value === "run-completed" ||
+    value === "run-aborted"
+  ) {
+    return value;
+  }
+  throw new Error(`RUN_RECEIPT_EVENT_INVALID:${value ?? "missing"}`);
+}
+
+function parseVerdict(value: string): "PASS" | "FIX" | "ESCALATE" {
+  if (value === "PASS" || value === "FIX" || value === "ESCALATE") return value;
+  throw new Error(`RUN_RECEIPT_VERDICT_INVALID:${value}`);
 }
 
 async function handlePin(action: string | undefined): Promise<void> {
@@ -145,8 +231,13 @@ function printUsage(): void {
       "Usage:",
       "  mandatemarshal version | --version | -v",
       "  mandatemarshal activation <status|enable|disable|resolve> [project-path] [--explicit]",
+      "  mandatemarshal run <start|ensure> [project-path]",
+      "  mandatemarshal run list",
+      "  mandatemarshal run <show|history|capture> <run-id>",
+      "  mandatemarshal run record <run-id> <event> [--candidate <id>] [--thread <id>] [--verdict PASS|FIX|ESCALATE]",
       "  mandatemarshal run <status|resume> <run-id> [--root <runtime-root>]",
       "  mandatemarshal pin [status|latest|<version>]",
+
     ].join("\n"),
   );
 }

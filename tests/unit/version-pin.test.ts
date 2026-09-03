@@ -30,8 +30,11 @@ function releaseFetch(targetVersion: string, targetSkillVersion = targetVersion)
     if (url.endsWith("/.codex-plugin/plugin.json")) {
       return new Response(JSON.stringify({ name: "mandatemarshal", version: targetVersion }), { status: 200 });
     }
-    if (url.endsWith("/skills/orchestration/SKILL.md")) {
-      const match = url.match(/\/v([^/]+)\/skills\/orchestration\/SKILL\.md$/u);
+    if (
+      url.endsWith("/plugins/mandatemarshal/skills/mandatemarshal/SKILL.md") ||
+      url.endsWith("/skills/orchestration/SKILL.md")
+    ) {
+      const match = url.match(/\/v([^/]+)\//u);
       const requestedVersion = match?.[1] ?? targetVersion;
       const version = requestedVersion === targetVersion ? targetSkillVersion : requestedVersion;
       return new Response(skillContent(version), { status: 200 });
@@ -194,26 +197,26 @@ describe("MandateMarshal version pinning", () => {
     const home = await mkdtemp(join(tmpdir(), "mandatemarshal-version-info-"));
     const codexHome = join(home, ".codex");
     const marketplaceRoot = join(home, "marketplace");
-    await preparePluginCache(codexHome, "0.2.4");
-    await pinMandateMarshal("0.2.4", {
+    await preparePluginCache(codexHome, "0.2.5");
+    await pinMandateMarshal("0.2.5", {
       home,
       codexHome,
-      fetchImpl: releaseFetch("0.2.4"),
-      runner: runnerFor("0.2.4", marketplaceRoot, []),
+      fetchImpl: releaseFetch("0.2.5"),
+      runner: runnerFor("0.2.5", marketplaceRoot, []),
     });
 
     const info = await inspectMandateMarshalVersion({
       home,
       codexHome,
-      runner: runnerFor("0.2.4", marketplaceRoot, [], { installed: true, marketplace: true }),
+      runner: runnerFor("0.2.5", marketplaceRoot, [], { installed: true, marketplace: true }),
     });
     expect(info).toEqual({
-      version: "0.2.4",
+      version: "0.2.5",
       pinStatus: "pinned",
-      pinnedVersion: "0.2.4",
-      installedPluginVersion: "0.2.4",
-      pluginCacheVersion: "0.2.4",
-      pluginCacheSkillVersion: "0.2.4",
+      pinnedVersion: "0.2.5",
+      installedPluginVersion: "0.2.5",
+      pluginCacheVersion: "0.2.5",
+      pluginCacheSkillVersion: "0.2.5",
       legacySkillVersion: null,
       aligned: true,
     });
