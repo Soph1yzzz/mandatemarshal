@@ -260,7 +260,7 @@ export async function readRunHistory(runId: string, options: RunReceiptOptions =
   try {
     text = await readFile(file, "utf8");
   } catch (error) {
-    if (isMissingFile(error)) {
+    if (isTraceUnavailable(error)) {
       return {
         schemaVersion: 1,
         runId,
@@ -636,6 +636,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isMissingFile(error: unknown): boolean {
   return isErrorCode(error, "ENOENT");
+}
+
+function isTraceUnavailable(error: unknown): boolean {
+  return isErrorCode(error, "ENOENT") || isErrorCode(error, "ENOTDIR");
 }
 
 function isErrorCode(error: unknown, code: string): boolean {
