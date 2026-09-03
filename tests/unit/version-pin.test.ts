@@ -268,10 +268,15 @@ describe("MandateMarshal version pinning", () => {
     expect(code).toBe(7);
   });
 
-  test("resolves a Windows Codex executable from the Codex home when PATH has no codex", async () => {
+  test("resolves a Codex executable from the Codex home when PATH has no codex", async () => {
     const home = await mkdtemp(join(tmpdir(), "mandatemarshal-codex-bin-"));
     const codexHome = join(home, ".codex");
-    const executable = join(codexHome, "plugins", ".plugin-appserver", "codex.exe");
+    const executable = join(
+      codexHome,
+      "plugins",
+      ".plugin-appserver",
+      process.platform === "win32" ? "codex.exe" : "codex",
+    );
     await mkdir(join(codexHome, "plugins", ".plugin-appserver"), { recursive: true });
     await writeFile(executable, "test", "utf8");
     const resolved = await resolveCodexBin({ home, codexHome, which: () => undefined });
