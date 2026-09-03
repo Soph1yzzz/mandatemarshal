@@ -11,7 +11,9 @@ import { defaultDurableRunRoot } from "../src/runtime/durable-run-store";
 import { inspectDurableRun, recordResumeRequest } from "../src/runtime/durable-status";
 import {
   inspectMandateMarshalPin,
+  inspectMandateMarshalVersion,
   maybeDelegateToPinnedCli,
+  readMandateMarshalPackageVersion,
   pinMandateMarshal,
 } from "../src/runtime/version-pin";
 
@@ -21,7 +23,9 @@ if (delegatedExit !== undefined) process.exit(delegatedExit);
 
 const [group, action, targetArg] = args;
 
-if (group === "activation") {
+if (group === "version" || group === "--version" || group === "-v") {
+  await handleVersion(group !== "version");
+} else if (group === "activation") {
   await handleActivation(action, targetArg);
 } else if (group === "run") {
   await handleRun(action, targetArg);
@@ -30,6 +34,24 @@ if (group === "activation") {
 } else {
   printUsage();
   process.exitCode = 2;
+}
+
+async function handleVersion(compact: boolean): Promise<void> {
+  if (compact) {
+    console.log(await readMandateMarshalPackageVersion());
+    return;
+  }
+  const info = await inspectMandateMarshalVersion();
+  console.log(
+    [
+      `MandateMarshal ${info.version}`,
+      `Pin: ${info.pinnedVersion === null ? "none" : `v${info.pinnedVersion}`}`,
+      `Plugin: ${info.installedPluginVersion ?? "not installed"}`,
+      `Skill: ${info.legacySkillVersion ?? "not installed"}`,
+      `Status: ${info.aligned ? "OK" : info.pinStatus.toUpperCase()}`,
+    ].join("\n"),
+  );
+  if (!info.aligned) process.exitCode = 4;
 }
 
 async function handleActivation(action: string | undefined, targetArg: string | undefined): Promise<void> {
@@ -118,6 +140,7 @@ function printUsage(): void {
   console.error(
     [
       "Usage:",
+      "  mandatemarshal version | --version | -v",
       "  mandatemarshal activation <status|enable|disable|resolve> [project-path] [--explicit]",
       "  mandatemarshal run <status|resume> <run-id> [--root <runtime-root>]",
       "  mandatemarshal pin [status|latest|<version>]",

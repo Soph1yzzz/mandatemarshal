@@ -23,6 +23,7 @@ v0.2.2 is intentionally narrow: it adds release pinning/update ergonomics for Co
 - [x] `mandatemarshal pin <version>` accepts an exact released semantic version with or without a leading `v`.
 - [x] `mandatemarshal pin latest` resolves the latest GitHub Release once and pins its exact tag.
 - [x] `mandatemarshal pin status` reports the recorded pin and detects installed-plugin version drift.
+- [x] `mandatemarshal version` reports runtime, pin, installed-plugin, and legacy-Skill versions together; `--version`/`-v` provide the script-friendly runtime version.
 - [x] The requested GitHub Release is verified before Codex plugin state is changed.
 - [x] Root plugin manifest, marketplace plugin manifest, canonical Skill, and marketplace Skill all report the package release version.
 - [x] Codex marketplace source is pinned to the exact Git tag rather than a moving branch.
@@ -43,7 +44,7 @@ v0.2.2 is intentionally narrow: it adds release pinning/update ergonomics for Co
 ## Verified quality gates
 
 - [x] Strict TypeScript typecheck passes with `0` diagnostics.
-- [x] Full test suite passes: `83/83` tests, `286` assertions.
+- [x] Full test suite passes: `85/85` tests, `293` assertions.
 - [x] `bun audit` reports `0` vulnerabilities on the final v0.2.2 tree.
 - [x] `git diff --check` is clean on the final release candidate.
 - [x] Package dry-run contains the intended v0.2.2 distribution surface (`76` files at final pre-release audit).
@@ -68,7 +69,7 @@ Full Codex Security remains an optional higher-assurance review under D-024. Esc
 
 ## Documentation synchronization
 
-- [x] `README.md` presents `mandatemarshal pin latest`, exact version pinning, and pin status as the preferred Codex update path.
+- [x] `README.md` presents `mandatemarshal pin latest`, exact version pinning, pin status, and the one-command version check as the preferred Codex update path.
 - [x] `docs/CODEX_SETUP.md` documents exact-tag marketplace pinning and CLI delegation.
 - [x] `CHANGELOG.md` contains v0.2.2 dated 2026-09-03.
 - [x] `package.json`, root plugin manifest, marketplace plugin manifest, and Skill metadata are `0.2.2`.

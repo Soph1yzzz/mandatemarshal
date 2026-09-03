@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   inspectMandateMarshalPin,
+  inspectMandateMarshalVersion,
   maybeDelegateToPinnedCli,
   parseSkillVersion,
   pinMandateMarshal,
@@ -147,6 +148,40 @@ describe("MandateMarshal version pinning", () => {
       }),
     ).rejects.toThrow("PIN_TARGET_VERSION_MISMATCH");
     expect(calls).toEqual([]);
+  });
+
+  test("version info reports the runtime and aligned pinned Codex versions in one call", async () => {
+    const home = await mkdtemp(join(tmpdir(), "mandatemarshal-version-info-"));
+    const marketplaceRoot = join(home, "marketplace");
+    const calls: string[][] = [];
+    await pinMandateMarshal("0.2.2", {
+      home,
+      fetchImpl: releaseFetch("0.2.2"),
+      runner: runnerFor("0.2.2", marketplaceRoot, calls),
+      syncLegacyCopies: false,
+    });
+
+    const targetCodexHome = join(home, ".codex");
+    await mkdir(join(targetCodexHome, "skills", "mandatemarshal"), { recursive: true });
+    await writeFile(
+      join(targetCodexHome, "skills", "mandatemarshal", "SKILL.md"),
+      '---\nname: mandatemarshal\nversion: "0.2.2"\n---\n',
+      "utf8",
+    );
+    const statusCalls: string[][] = [];
+    const info = await inspectMandateMarshalVersion({
+      home,
+      codexHome: targetCodexHome,
+      runner: runnerFor("0.2.2", marketplaceRoot, statusCalls, { installed: true, marketplace: true }),
+    });
+    expect(info).toEqual({
+      version: "0.2.2",
+      pinStatus: "pinned",
+      pinnedVersion: "0.2.2",
+      installedPluginVersion: "0.2.2",
+      legacySkillVersion: "0.2.2",
+      aligned: true,
+    });
   });
 
   test("status reports drift when Codex has a different plugin version than the pin record", async () => {

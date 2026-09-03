@@ -29,6 +29,8 @@ mandatemarshal pin 0.2.2
 
 for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects plugin-version drift.
 
+`mandatemarshal version` reports the runtime, pin, installed plugin, and legacy Skill versions together. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version.
+
 The pin flow:
 
 1. resolves and verifies a published MandateMarshal GitHub Release before mutating Codex state;

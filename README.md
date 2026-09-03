@@ -63,7 +63,10 @@ Use an exact release when you want reproducibility:
 ```bash
 mandatemarshal pin 0.2.2
 mandatemarshal pin status
+mandatemarshal version
 ```
+
+`mandatemarshal version` prints the runtime version plus the pinned, installed-plugin, and legacy-Skill versions in one view. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version for scripts.
 
 `pin` uses Codex's native plugin marketplace and keeps the plugin metadata, Skill, agent profiles, and delegated MandateMarshal CLI on the same released Git tag. For compatibility with older installs, it also mirrors the pinned Skill/agents into the legacy `~/.codex/skills/mandatemarshal` and `~/.codex/agents/mandatemarshal_*.toml` locations so stale manual copies cannot win discovery. After pinning or changing versions, start a new Codex session. Once that bundled Skill is loaded, say:
 
@@ -255,7 +258,10 @@ Or pin an exact release:
 ```bash
 mandatemarshal pin 0.2.2
 mandatemarshal pin status
+mandatemarshal version
 ```
+
+`mandatemarshal version` is the quick human check: it reports the active runtime version, exact pin, installed Codex plugin version, legacy Skill version, and an `OK`/drift status. `--version`/`-v` emit only the runtime version.
 
 The selected Git tag is installed through Codex's native plugin marketplace. MandateMarshal records the exact pin under `~/.mandatemarshal/pin.json`, mirrors the pinned Skill/agents into the legacy global MandateMarshal paths for backward-compatible discovery, and delegates normal CLI commands to the CLI source from that pinned marketplace checkout. This prevents version skew between the Skill/plugin metadata and the runtime implementation.
 

@@ -26,6 +26,15 @@ export interface MandateMarshalPinStatus {
   legacySkillVersion: string | null;
 }
 
+export interface MandateMarshalVersionInfo {
+  version: string;
+  pinStatus: MandateMarshalPinStatus["status"];
+  pinnedVersion: string | null;
+  installedPluginVersion: string | null;
+  legacySkillVersion: string | null;
+  aligned: boolean;
+}
+
 export interface PinCommandResult {
   code: number;
   stdout: string;
@@ -132,6 +141,25 @@ export async function pinMandateMarshal(
   return record;
 }
 
+export async function inspectMandateMarshalVersion(options: PinRuntimeOptions = {}): Promise<MandateMarshalVersionInfo> {
+  const packageVersion = await readMandateMarshalPackageVersion();
+  const pin = await inspectMandateMarshalPin(options);
+  return {
+    version: packageVersion,
+    pinStatus: pin.status,
+    pinnedVersion: pin.record?.version ?? null,
+    installedPluginVersion: pin.installedPluginVersion,
+    legacySkillVersion: pin.legacySkillVersion,
+    aligned:
+      pin.status === "unpinned"
+        ? true
+        : pin.status === "pinned" &&
+          pin.record?.version === packageVersion &&
+          pin.installedPluginVersion === packageVersion &&
+          pin.legacySkillVersion === packageVersion,
+  };
+}
+
 export async function inspectMandateMarshalPin(options: PinRuntimeOptions = {}): Promise<MandateMarshalPinStatus> {
   const record = await readPinRecord(options.home);
   if (!record) {
@@ -177,6 +205,13 @@ export async function maybeDelegateToPinnedCli(args: readonly string[], options:
     },
   });
   return child.exited;
+}
+
+export async function readMandateMarshalPackageVersion(): Promise<string> {
+  const packagePath = resolve(import.meta.dir, "../..", "package.json");
+  const packageJson = JSON.parse(await readFile(packagePath, "utf8")) as { version?: unknown };
+  if (!isVersion(packageJson.version)) throw new Error(`PACKAGE_VERSION_INVALID:${packagePath}`);
+  return packageJson.version;
 }
 
 export async function readPinRecord(home = homedir()): Promise<MandateMarshalPinRecord | undefined> {
