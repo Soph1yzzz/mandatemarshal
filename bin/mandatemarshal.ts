@@ -42,16 +42,17 @@ async function handleVersion(compact: boolean): Promise<void> {
     return;
   }
   const info = await inspectMandateMarshalVersion();
+  const displayStatus = info.pinStatus === "unpinned" ? "UNPINNED" : info.aligned ? "OK" : "DRIFTED";
   console.log(
     [
       `MandateMarshal ${info.version}`,
       `Pin: ${info.pinnedVersion === null ? "none" : `v${info.pinnedVersion}`}`,
       `Plugin: ${info.installedPluginVersion ?? "not installed"}`,
       `Skill: ${info.legacySkillVersion ?? "not installed"}`,
-      `Status: ${info.aligned ? "OK" : info.pinStatus.toUpperCase()}`,
+      `Status: ${displayStatus}`,
     ].join("\n"),
   );
-  if (!info.aligned) process.exitCode = 4;
+  if (info.pinStatus === "drifted") process.exitCode = 4;
 }
 
 async function handleActivation(action: string | undefined, targetArg: string | undefined): Promise<void> {

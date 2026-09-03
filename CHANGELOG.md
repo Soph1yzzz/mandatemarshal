@@ -4,6 +4,13 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-03
+
+### Fixed
+
+- Fixed `mandatemarshal pin` on Windows shells where `codex` is installed but not present on the inherited PATH by resolving the Codex executable from PATH and known Codex/npm install locations before failing.
+- `mandatemarshal version` now labels an installation with no release pin as `UNPINNED` instead of presenting missing plugin/Skill state as `OK`.
+
 ## [0.2.2] - 2026-09-03
 
 ### Added

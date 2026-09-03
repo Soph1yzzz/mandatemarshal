@@ -166,3 +166,9 @@ A full Codex Security scan remains an optional higher-assurance review for futur
 **Decision:** MandateMarshal's preferred Codex update path is `mandatemarshal pin <version|latest>`. `latest` resolves once to a published GitHub Release and is then treated as that exact version. The Codex plugin marketplace is configured at the corresponding immutable Git tag, and the package/plugin/Skill versions must match before the pin is accepted.
 
 The pin record lives outside target repositories under `~/.mandatemarshal/pin.json`. Normal CLI commands delegate to the CLI source in the pinned marketplace checkout so plugin/Skill metadata and runtime implementation do not silently drift apart. Changing the pin requires a new Codex session to reload Skill/agent metadata.
+
+## v0.2.3 Windows pin hotfix — 2026-09-03
+
+### D-030 — Pinning resolves the installed Codex CLI rather than assuming shell PATH
+
+**Decision:** `mandatemarshal pin` resolves Codex from an explicit override, the active PATH, and known Codex/npm install locations before failing. A Windows shell where `codex` is installed but absent from the inherited PATH must not make release pinning unusable.

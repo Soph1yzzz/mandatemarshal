@@ -9,6 +9,7 @@ import {
   parseSkillVersion,
   pinMandateMarshal,
   readPinRecord,
+  resolveCodexBin,
   type PinCommandRunner,
 } from "../../src/runtime/version-pin";
 
@@ -154,10 +155,10 @@ describe("MandateMarshal version pinning", () => {
     const home = await mkdtemp(join(tmpdir(), "mandatemarshal-version-info-"));
     const marketplaceRoot = join(home, "marketplace");
     const calls: string[][] = [];
-    await pinMandateMarshal("0.2.2", {
+    await pinMandateMarshal("0.2.3", {
       home,
-      fetchImpl: releaseFetch("0.2.2"),
-      runner: runnerFor("0.2.2", marketplaceRoot, calls),
+      fetchImpl: releaseFetch("0.2.3"),
+      runner: runnerFor("0.2.3", marketplaceRoot, calls),
       syncLegacyCopies: false,
     });
 
@@ -165,21 +166,21 @@ describe("MandateMarshal version pinning", () => {
     await mkdir(join(targetCodexHome, "skills", "mandatemarshal"), { recursive: true });
     await writeFile(
       join(targetCodexHome, "skills", "mandatemarshal", "SKILL.md"),
-      '---\nname: mandatemarshal\nversion: "0.2.2"\n---\n',
+      '---\nname: mandatemarshal\nversion: "0.2.3"\n---\n',
       "utf8",
     );
     const statusCalls: string[][] = [];
     const info = await inspectMandateMarshalVersion({
       home,
       codexHome: targetCodexHome,
-      runner: runnerFor("0.2.2", marketplaceRoot, statusCalls, { installed: true, marketplace: true }),
+      runner: runnerFor("0.2.3", marketplaceRoot, statusCalls, { installed: true, marketplace: true }),
     });
     expect(info).toEqual({
-      version: "0.2.2",
+      version: "0.2.3",
       pinStatus: "pinned",
-      pinnedVersion: "0.2.2",
-      installedPluginVersion: "0.2.2",
-      legacySkillVersion: "0.2.2",
+      pinnedVersion: "0.2.3",
+      installedPluginVersion: "0.2.3",
+      legacySkillVersion: "0.2.3",
       aligned: true,
     });
   });
@@ -265,6 +266,16 @@ describe("MandateMarshal version pinning", () => {
 
     const code = await maybeDelegateToPinnedCli(["activation", "status"], { home });
     expect(code).toBe(7);
+  });
+
+  test("resolves a Windows Codex executable from the Codex home when PATH has no codex", async () => {
+    const home = await mkdtemp(join(tmpdir(), "mandatemarshal-codex-bin-"));
+    const codexHome = join(home, ".codex");
+    const executable = join(codexHome, "plugins", ".plugin-appserver", "codex.exe");
+    await mkdir(join(codexHome, "plugins", ".plugin-appserver"), { recursive: true });
+    await writeFile(executable, "test", "utf8");
+    const resolved = await resolveCodexBin({ home, codexHome, which: () => undefined });
+    expect(resolved).toBe(executable);
   });
 
   test("parses quoted and unquoted Skill frontmatter versions", () => {

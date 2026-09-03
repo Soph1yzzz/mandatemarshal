@@ -1,6 +1,6 @@
 ---
 name: mandatemarshal
-version: "0.2.2"
+version: "0.2.3"
 description: >
   Authority-aware coding-agent orchestration with explicit Owner/Parent/Implementer/Fresh-Reviewer
   boundaries, deterministic execution evidence, mandatory fresh QA, and no silent model/role fallback.

@@ -24,7 +24,7 @@ mandatemarshal pin latest
 to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
 
 ```bash
-mandatemarshal pin 0.2.2
+mandatemarshal pin 0.2.3
 ```
 
 for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects plugin-version drift.
@@ -43,7 +43,7 @@ The pin flow:
 
 Normal MandateMarshal CLI commands then delegate to the CLI source inside the pinned marketplace checkout. This keeps the plugin metadata, Skill, agent profiles, legacy compatibility copies, and runtime implementation on the same release rather than updating only one surface.
 
-Start a new Codex session after changing the pin so Codex reloads the selected Skill and agent metadata.
+Start a new Codex session after changing the pin so Codex reloads the selected Skill and agent metadata. On Windows, MandateMarshal resolves Codex from PATH first and then from known Codex/npm install locations, so `pin` does not require `codex` itself to be on the current shell PATH.
 
 ## Project-scoped agent profiles
 

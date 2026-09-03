@@ -154,7 +154,7 @@ Do not store complete environments, credentials, API keys, or unbounded stdout/s
 
 The current evidence model supports excerpts/trust metadata. Integrators should redact secret-bearing output before persistence and prefer external evidence storage. Persisted run directories are create-once by run ID; artifact files use exclusive creation and request `0600` file / `0700` directory modes where the platform supports POSIX-style permissions.
 
-`CodexCliDriverOptions.command` is trusted operator configuration only. Do not populate it from repository content, model output, or other untrusted input. MandateMarshal intentionally exposes no arbitrary `extraArgs` injection surface for Codex CLI flags.
+`CodexCliDriverOptions.command` and the `MANDATEMARSHAL_CODEX_BIN` pinning override are trusted operator configuration only. Do not populate either from repository content, model output, or other untrusted input. MandateMarshal intentionally exposes no arbitrary `extraArgs` injection surface for Codex CLI flags. Pinning resolves Codex only from the explicit trusted override, the active PATH, and known same-user Codex/npm install locations.
 
 ## Destructive actions
 

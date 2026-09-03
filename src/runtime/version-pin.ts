@@ -51,6 +51,7 @@ export interface PinRuntimeOptions {
   now?: () => Date;
   codexHome?: string;
   syncLegacyCopies?: boolean;
+  which?: (command: string) => string | undefined;
 }
 
 interface CodexPluginList {
@@ -71,7 +72,7 @@ export async function pinMandateMarshal(
 ): Promise<MandateMarshalPinRecord> {
   const target = await resolvePinTarget(requested, options.fetchImpl ?? fetch);
   const runner = options.runner ?? createBunCommandRunner();
-  const codexBin = options.codexBin ?? process.env.MANDATEMARSHAL_CODEX_BIN ?? "codex";
+  const codexBin = await resolveCodexBin(options);
 
   await verifyPublishedTarget(target.version, target.ref, options.fetchImpl ?? fetch);
 
@@ -167,7 +168,7 @@ export async function inspectMandateMarshalPin(options: PinRuntimeOptions = {}):
   }
 
   const runner = options.runner ?? createBunCommandRunner();
-  const codexBin = options.codexBin ?? process.env.MANDATEMARSHAL_CODEX_BIN ?? "codex";
+  const codexBin = await resolveCodexBin(options);
   const installed = await readInstalledPlugin(runner, codexBin).catch(() => undefined);
   const installedPluginVersion = installed?.version ?? null;
   const legacySkillVersion = await readLegacySkillVersion(options.home, options.codexHome);
@@ -312,6 +313,36 @@ async function isMarketplaceConfigured(runner: PinCommandRunner, codexBin: strin
   requireSuccess(result, "Failed to inspect configured Codex plugin marketplaces");
   const payload = JSON.parse(result.stdout) as { marketplaces?: Array<{ name?: string }> };
   return payload.marketplaces?.some((marketplace) => marketplace.name === MARKETPLACE) ?? false;
+}
+
+export async function resolveCodexBin(options: PinRuntimeOptions = {}): Promise<string> {
+  if (options.codexBin?.trim()) return options.codexBin;
+  if (process.env.MANDATEMARSHAL_CODEX_BIN?.trim()) return process.env.MANDATEMARSHAL_CODEX_BIN;
+  if (options.runner) return "codex";
+
+  const fromPath = (options.which ?? Bun.which)("codex");
+  if (fromPath) return fromPath;
+
+  const home = resolve(options.home ?? homedir());
+  const codexHome = resolve(options.codexHome ?? process.env.CODEX_HOME ?? join(home, ".codex"));
+  const executable = process.platform === "win32" ? "codex.exe" : "codex";
+  const candidates = [
+    join(codexHome, "plugins", ".plugin-appserver", executable),
+    join(codexHome, ".sandbox-bin", executable),
+    ...(process.platform === "win32"
+      ? [
+          join(home, "AppData", "Roaming", "npm", "codex.cmd"),
+          join(home, "AppData", "Roaming", "npm", "codex.exe"),
+        ]
+      : []),
+  ];
+  for (const candidate of candidates) {
+    if (await isFile(candidate)) return candidate;
+  }
+
+  throw new Error(
+    "CODEX_CLI_NOT_FOUND: install Codex CLI or set MANDATEMARSHAL_CODEX_BIN to the Codex executable path",
+  );
 }
 
 function createBunCommandRunner(): PinCommandRunner {

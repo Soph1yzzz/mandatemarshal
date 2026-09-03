@@ -61,7 +61,7 @@ mandatemarshal activation enable /path/to/your-project
 Use an exact release when you want reproducibility:
 
 ```bash
-mandatemarshal pin 0.2.2
+mandatemarshal pin 0.2.3
 mandatemarshal pin status
 mandatemarshal version
 ```
@@ -256,7 +256,7 @@ mandatemarshal pin latest
 Or pin an exact release:
 
 ```bash
-mandatemarshal pin 0.2.2
+mandatemarshal pin 0.2.3
 mandatemarshal pin status
 mandatemarshal version
 ```
