@@ -13,6 +13,36 @@ MandateMarshal uses semantic roles in core and maps them to Codex-specific agent
 
 These mappings are exact requests. If the active Codex runtime cannot provide an exact configured model/effort combination, MandateMarshal must report the capability/configuration failure rather than silently substituting another role.
 
+## Release pinning and updates
+
+v0.2.2 adds a Codex-native update path. After the one-time MandateMarshal CLI bootstrap, use:
+
+```bash
+mandatemarshal pin latest
+```
+
+to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
+
+```bash
+mandatemarshal pin 0.2.2
+```
+
+for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects plugin-version drift.
+
+The pin flow:
+
+1. resolves and verifies a published MandateMarshal GitHub Release before mutating Codex state;
+2. verifies the release's plugin manifest and Skill metadata report the same version;
+3. configures the MandateMarshal Git repository as a Codex plugin marketplace at the exact release tag;
+4. installs the `mandatemarshal@mandatemarshal` plugin from that marketplace;
+5. verifies Codex reports the expected installed plugin version;
+6. mirrors the pinned Skill and agent profiles into the legacy global MandateMarshal locations under `~/.codex/skills/mandatemarshal` and `~/.codex/agents/` so older discovery paths cannot keep a stale copy active;
+7. stores the exact marketplace/runtime source under `~/.mandatemarshal/pin.json`.
+
+Normal MandateMarshal CLI commands then delegate to the CLI source inside the pinned marketplace checkout. This keeps the plugin metadata, Skill, agent profiles, legacy compatibility copies, and runtime implementation on the same release rather than updating only one surface.
+
+Start a new Codex session after changing the pin so Codex reloads the selected Skill and agent metadata.
+
 ## Project-scoped agent profiles
 
 Codex supports project-scoped custom agent definitions under:
@@ -66,9 +96,13 @@ The orchestration engine therefore also re-observes candidate identity after Fre
 
 ## Plugin / Skill
 
-MandateMarshal also ships a Codex plugin manifest and orchestration Skill:
+MandateMarshal also ships a Codex marketplace manifest, plugin package, and orchestration Skill:
 
 ```text
+.agents/plugins/marketplace.json
+plugins/mandatemarshal/.codex-plugin/plugin.json
+plugins/mandatemarshal/skills/mandatemarshal/SKILL.md
+plugins/mandatemarshal/agents/*.toml
 .codex-plugin/plugin.json
 skills/orchestration/SKILL.md
 ```

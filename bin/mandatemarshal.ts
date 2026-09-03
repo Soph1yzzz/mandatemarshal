@@ -9,13 +9,24 @@ import {
 } from "../src/runtime/project-activation";
 import { defaultDurableRunRoot } from "../src/runtime/durable-run-store";
 import { inspectDurableRun, recordResumeRequest } from "../src/runtime/durable-status";
+import {
+  inspectMandateMarshalPin,
+  maybeDelegateToPinnedCli,
+  pinMandateMarshal,
+} from "../src/runtime/version-pin";
 
-const [group, action, targetArg] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const delegatedExit = await maybeDelegateToPinnedCli(args);
+if (delegatedExit !== undefined) process.exit(delegatedExit);
+
+const [group, action, targetArg] = args;
 
 if (group === "activation") {
   await handleActivation(action, targetArg);
 } else if (group === "run") {
   await handleRun(action, targetArg);
+} else if (group === "pin") {
+  await handlePin(action);
 } else {
   printUsage();
   process.exitCode = 2;
@@ -78,6 +89,25 @@ async function handleRun(action: string | undefined, runId: string | undefined):
   }
 }
 
+async function handlePin(action: string | undefined): Promise<void> {
+  if (action === undefined || action === "status") {
+    console.log(JSON.stringify(await inspectMandateMarshalPin(), null, 2));
+    return;
+  }
+  const record = await pinMandateMarshal(action);
+  console.log(
+    JSON.stringify(
+      {
+        status: "pinned",
+        record,
+        note: "Start a new Codex session so the pinned plugin/Skill metadata is loaded.",
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 function readFlagValue(flag: string): string | undefined {
   const index = process.argv.indexOf(flag);
   if (index < 0) return undefined;
@@ -90,6 +120,7 @@ function printUsage(): void {
       "Usage:",
       "  mandatemarshal activation <status|enable|disable|resolve> [project-path] [--explicit]",
       "  mandatemarshal run <status|resume> <run-id> [--root <runtime-root>]",
+      "  mandatemarshal pin [status|latest|<version>]",
     ].join("\n"),
   );
 }

@@ -4,6 +4,18 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-03
+
+### Added
+
+- Added `mandatemarshal pin <version|latest>` and `mandatemarshal pin status` so Codex can switch MandateMarshal releases through its native plugin marketplace instead of manual Skill/agent copying.
+- Added a MandateMarshal Codex marketplace manifest and plugin-bundled agent profiles so a pinned Git tag provides the Skill, agent definitions, plugin metadata, and CLI source from the same release.
+- Pinned CLI delegation now forwards normal MandateMarshal commands to the CLI bundled inside the selected plugin release, preventing a newer Skill from silently running against an older launcher implementation.
+
+### Fixed
+
+- Package, Codex plugin manifest, and Skill frontmatter versions are now checked as one release version so Codex cannot keep reporting stale Skill metadata after an update.
+
 ## [0.2.1] - 2026-09-03
 
 ### Fixed

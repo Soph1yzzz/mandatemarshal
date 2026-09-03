@@ -50,14 +50,22 @@ bun run check
 
 ### Prepare a Codex project
 
-Install the reviewed agent profiles and explicitly activate the target project:
+Bootstrap the CLI once, pin the Codex integration to a released version, then explicitly activate the target project:
 
 ```bash
-bun run install:codex-agents -- /path/to/your-project/.codex/agents
-bun run activation -- enable /path/to/your-project
+bun link
+mandatemarshal pin latest
+mandatemarshal activation enable /path/to/your-project
 ```
 
-The repository also ships a Codex plugin manifest and orchestration Skill. Once that bundled Skill is loaded in a new Codex session, say:
+Use an exact release when you want reproducibility:
+
+```bash
+mandatemarshal pin 0.2.2
+mandatemarshal pin status
+```
+
+`pin` uses Codex's native plugin marketplace and keeps the plugin metadata, Skill, agent profiles, and delegated MandateMarshal CLI on the same released Git tag. For compatibility with older installs, it also mirrors the pinned Skill/agents into the legacy `~/.codex/skills/mandatemarshal` and `~/.codex/agents/mandatemarshal_*.toml` locations so stale manual copies cannot win discovery. After pinning or changing versions, start a new Codex session. Once that bundled Skill is loaded, say:
 
 ```text
 Use MandateMarshal for this project.
@@ -234,9 +242,28 @@ bun run check
 bun run validate:config
 ```
 
-### Install project-scoped Codex agent profiles
+### Preferred Codex install/update: pin a release
 
-From the target repository root, run MandateMarshal's installer with the target `.codex/agents` directory:
+After the one-time CLI bootstrap, update Codex with one command:
+
+```bash
+mandatemarshal pin latest
+```
+
+Or pin an exact release:
+
+```bash
+mandatemarshal pin 0.2.2
+mandatemarshal pin status
+```
+
+The selected Git tag is installed through Codex's native plugin marketplace. MandateMarshal records the exact pin under `~/.mandatemarshal/pin.json`, mirrors the pinned Skill/agents into the legacy global MandateMarshal paths for backward-compatible discovery, and delegates normal CLI commands to the CLI source from that pinned marketplace checkout. This prevents version skew between the Skill/plugin metadata and the runtime implementation.
+
+Start a new Codex session after changing the pin.
+
+### Manual fallback: project-scoped Codex agent profiles
+
+If you intentionally do not use the plugin marketplace, run MandateMarshal's legacy installer with the target `.codex/agents` directory:
 
 ```bash
 bun run install:codex-agents -- /path/to/target/.codex/agents
@@ -254,10 +281,14 @@ See `docs/CODEX_SETUP.md`.
 
 ## Plugin / Skill packaging
 
-The repository includes:
+The repository includes both the source packaging and a Codex marketplace package:
 
 ```text
+.agents/plugins/marketplace.json
 .codex-plugin/plugin.json
+plugins/mandatemarshal/.codex-plugin/plugin.json
+plugins/mandatemarshal/skills/mandatemarshal/
+plugins/mandatemarshal/agents/
 skills/orchestration/SKILL.md
 skills/orchestration/references/
 ```

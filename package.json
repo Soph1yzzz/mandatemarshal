@@ -1,6 +1,6 @@
 {
   "name": "mandatemarshal",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Authority-aware orchestration for Codex and coding agents with bounded autonomy, durable recovery, fresh review, deterministic evidence, and no silent fallback.",
   "keywords": [
     "agent-skills",
@@ -59,11 +59,14 @@
     "./adapters/codex": "./src/adapters/codex/adapter.ts"
   },
   "files": [
+    ".agents",
     ".codex-plugin",
+    "agents",
     "bin",
     "src",
     "schemas",
     "prompts",
+    "plugins",
     "skills",
     "templates",
     "tools",

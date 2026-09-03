@@ -130,6 +130,24 @@ Mitigations:
 
 These files are same-user trust surfaces. MandateMarshal does not claim integrity against a process that already has arbitrary write access to the user's account and MandateMarshal home directory.
 
+### Release pinning and plugin-version drift
+
+`mandatemarshal pin` changes which released MandateMarshal code Codex loads. A moving branch, stale Skill metadata, or partial update could otherwise run one runtime version while Codex presents another.
+
+Mitigations:
+
+- only published GitHub Release tags are accepted by the pin flow;
+- `latest` resolves once to an exact release tag rather than remaining a moving selector;
+- the release's plugin manifest and canonical Skill metadata must report the requested version before Codex installation state is changed;
+- Codex marketplace configuration is pinned to the exact Git tag;
+- Codex's observed installed plugin version is checked before the local pin record is committed;
+- the pinned plugin's Skill/agent files overwrite the known legacy global MandateMarshal copies so stale pre-v0.2.2 manual installs cannot win discovery;
+- package, root plugin, marketplace plugin, canonical Skill, marketplace Skill, and bundled agent copies are regression-tested for version/content drift;
+- pin state is stored outside target repositories under `~/.mandatemarshal/pin.json`;
+- normal CLI commands delegate to the pinned marketplace checkout so a newer Skill cannot silently drive an older runtime implementation.
+
+The GitHub repository/release account and the local same-user Codex/MandateMarshal homes are trusted distribution surfaces. v0.2.2 does not add independent release-signature verification beyond Git tag/release and metadata consistency checks.
+
 ## Secrets and evidence
 
 Do not store complete environments, credentials, API keys, or unbounded stdout/stderr in run artifacts.

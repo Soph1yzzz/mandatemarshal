@@ -158,3 +158,11 @@ A full Codex Security scan remains an optional higher-assurance review for futur
 ### D-028 — Codex persistent sessions are observed conservatively
 
 **Decision:** Normal Codex runs remain ephemeral. A durable Codex operation persists its thread/session and external operation mapping outside the target repository. A validated completed session may be recovered without relaunching the child. An incomplete thread is not automatically resumed solely because `codex exec resume` exists; if duplicate side-effect safety cannot be proven, recovery remains reconciliation-required.
+
+## v0.2.2 update/pin decision — 2026-09-03
+
+### D-029 — Codex updates pin an exact released Git tag
+
+**Decision:** MandateMarshal's preferred Codex update path is `mandatemarshal pin <version|latest>`. `latest` resolves once to a published GitHub Release and is then treated as that exact version. The Codex plugin marketplace is configured at the corresponding immutable Git tag, and the package/plugin/Skill versions must match before the pin is accepted.
+
+The pin record lives outside target repositories under `~/.mandatemarshal/pin.json`. Normal CLI commands delegate to the CLI source in the pinned marketplace checkout so plugin/Skill metadata and runtime implementation do not silently drift apart. Changing the pin requires a new Codex session to reload Skill/agent metadata.

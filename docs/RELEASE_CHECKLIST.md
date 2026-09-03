@@ -1,6 +1,10 @@
-# MandateMarshal v0.2.0 Release Checklist
+# MandateMarshal v0.2.2 Release Checklist
 
-This checklist is the publication gate for MandateMarshal v0.2.0.
+This checklist is the publication gate for MandateMarshal v0.2.2.
+
+## Scope
+
+v0.2.2 is intentionally narrow: it adds release pinning/update ergonomics for Codex and version-alignment guards. It does not change the authority model, routing policy, durable recovery semantics, or provider execution behavior.
 
 ## Code and authority contracts
 
@@ -12,49 +16,40 @@ This checklist is the publication gate for MandateMarshal v0.2.0.
 - [x] Routine-to-complex reclassification remains explicit and auditable.
 - [x] No silent model/role/effort fallback exists in the Codex adapter.
 - [x] Activation remains explicit-first, project-persistent, external to the target repository, and fail-closed on malformed records.
+- [x] Durable recovery behavior is unchanged from v0.2.1.
 
-## Durable runtime
+## Pin/update contract
 
-- [x] Important external operations persist an intent before execution.
-- [x] Recovery distinguishes completed, retryable, waiting, and reconciliation-required outcomes from observed state.
-- [x] Missing local completion state alone never proves an external operation did not happen.
-- [x] Duplicate live idempotency keys are rejected.
-- [x] Journal entries are append-only, sequence checked, and flushed before being relied on for recovery.
-- [x] Versioned snapshots restore continuation state while newer state-machine transitions remain replayable from the journal.
-- [x] Journal corruption/sequence gaps fail closed.
-- [x] Durable runs enforce a single active writer with lease heartbeat, token validation, and explicit expired-lease takeover.
-- [x] Implementer-launch crash recovery is covered by fault-injection tests.
-- [x] Fresh Reviewer-launch crash recovery is covered by fault-injection tests.
-- [x] Parent verification is retried only at its explicitly idempotent boundary.
-- [x] Completed artifact bundles can be reconciled after crash without blind replacement writes.
-- [x] `mandatemarshal run status` and `mandatemarshal run resume` inspect/request resume without direct snapshot editing.
+- [x] `mandatemarshal pin <version>` accepts an exact released semantic version with or without a leading `v`.
+- [x] `mandatemarshal pin latest` resolves the latest GitHub Release once and pins its exact tag.
+- [x] `mandatemarshal pin status` reports the recorded pin and detects installed-plugin version drift.
+- [x] The requested GitHub Release is verified before Codex plugin state is changed.
+- [x] Root plugin manifest, marketplace plugin manifest, canonical Skill, and marketplace Skill all report the package release version.
+- [x] Codex marketplace source is pinned to the exact Git tag rather than a moving branch.
+- [x] Codex reports the expected installed plugin version before the pin record is committed.
+- [x] Pin state is stored outside target repositories under `~/.mandatemarshal/pin.json`.
+- [x] Normal CLI commands delegate to the CLI source in the pinned marketplace checkout, preventing a newer Skill from silently using an older runtime implementation.
+- [x] Marketplace Skill/reference copies and all bundled agent profiles are regression-checked against canonical source files.
+- [x] Changing a pin requires a new Codex session to reload Skill/agent metadata; this is documented.
 
-## Codex provider surface
+## Codex plugin-manager surface
 
-- [x] Codex routine default: Luna / Max.
-- [x] Codex complex default: Terra / High.
-- [x] Codex Fresh Reviewer default: Sol / High.
-- [x] Fresh Reviewer requests read-only sandbox.
-- [x] Ordinary Codex runs remain ephemeral.
-- [x] Durable Codex operations persist operation-to-thread mapping outside the target repository.
-- [x] A validated completed Codex session can be recovered without relaunching the child.
-- [x] An incomplete/ambiguous Codex session is not auto-resumed merely because `codex exec resume` exists.
-- [x] Claude Code remains explicitly experimental and fixture-level only; production parity is not claimed.
+- [x] `.agents/plugins/marketplace.json` exposes the dedicated `plugins/mandatemarshal` package.
+- [x] The marketplace plugin contains `.codex-plugin/plugin.json`, the MandateMarshal Skill/references, and all three reviewed agent profiles.
+- [x] A real Codex plugin-manager smoke in an isolated temporary `CODEX_HOME` successfully adds the local marketplace, installs MandateMarshal v0.2.2, and reports it through `codex plugin list --json`.
+- [x] The plugin-manager smoke does not execute a coding agent/model.
+- [x] Real Codex agent/model smoke is not required for this patch release because provider execution code and model routing are unchanged.
 
 ## Verified quality gates
 
 - [x] Strict TypeScript typecheck passes with `0` diagnostics.
-- [x] Full test suite passes: `73/73` tests, `247` assertions.
-- [x] `bun audit` reports `0` vulnerabilities.
-- [x] Real Codex three-lane smoke passes: Luna/Max complete, Terra/High complete, Sol/High Fresh Reviewer PASS.
-- [x] Real durable Codex smoke passes: persistent thread captured and completed operation recovered by durable observer.
-- [x] Windows real-host smoke cleanup is robust enough to exit `0` after the provider checks pass.
-- [x] `git diff --check` is clean.
-- [x] Package dry-run contains the intended v0.2 distribution surface (`64` files at final pre-release audit).
-- [x] Local-only `docs/ROADMAP.md`, `.stackmarshal/`, provenance bundle/master, local npm-ignore helpers, and generated local runtime state are excluded from the publication surface.
-- [x] No `NUL` local artifact remains in the repository root.
+- [x] Full test suite passes: `83/83` tests, `286` assertions.
+- [x] `bun audit` reports `0` vulnerabilities on the final v0.2.2 tree.
+- [x] `git diff --check` is clean on the final release candidate.
+- [x] Package dry-run contains the intended v0.2.2 distribution surface (`76` files at final pre-release audit).
+- [x] Local-only `docs/ROADMAP.md`, `.stackmarshal/`, provenance bundle/master, and generated local runtime state remain excluded from the publication surface.
 
-## Reproducible v0.2 release gate
+## Reproducible v0.2.2 release gate
 
 Run from the repository root:
 
@@ -62,33 +57,30 @@ Run from the repository root:
 bun install --frozen-lockfile
 bun audit
 bun run check
-bun run smoke:codex
-bun run smoke:codex:durable
 npm pack --dry-run --json
 ```
 
 Also review the intended Git/publication set for secrets, credentials, personal/local absolute paths, generated artifacts, dangerous Codex bypass flags, unexpected executable/write surfaces, and trust-boundary changes.
 
-Full Codex Security remains an optional higher-assurance review under D-024. Escalate to it when the attack surface materially grows, for example with network-facing inputs, untrusted parsers/deserializers, remote services, broader plugin/process privilege, or other substantial security boundaries.
+Do not invoke real Codex coding agents as part of the publication procedure for this patch release. The only Codex-specific acceptance check required by v0.2.2 is plugin management in an isolated temporary `CODEX_HOME`.
+
+Full Codex Security remains an optional higher-assurance review under D-024. Escalate to it when the attack surface materially grows.
 
 ## Documentation synchronization
 
-- [x] `README.md` describes v0.2 durable recovery and its deliberate limits.
-- [x] `docs/DURABLE_RUNTIME.md` documents journal, snapshots, operation reconciliation, leases, CLI, Codex durable behavior, and fault-injection coverage.
-- [x] `docs/ARCHITECTURE.md` describes the durable runtime boundary.
-- [x] `docs/CODEX_SETUP.md` distinguishes normal ephemeral Codex runs from durable persistent-thread runs.
-- [x] `SECURITY.md` targets `0.2.x` and covers crash-recovery ambiguity, durable-state tampering, leases, and Codex persisted-session trust.
-- [x] `docs/DECISIONS.md` contains v0.2 durable-runtime decisions.
-- [x] `CHANGELOG.md` contains v0.2.0 dated 2026-09-01.
-- [x] `package.json` version is `0.2.0` and metadata mentions durable recovery.
+- [x] `README.md` presents `mandatemarshal pin latest`, exact version pinning, and pin status as the preferred Codex update path.
+- [x] `docs/CODEX_SETUP.md` documents exact-tag marketplace pinning and CLI delegation.
+- [x] `CHANGELOG.md` contains v0.2.2 dated 2026-09-03.
+- [x] `package.json`, root plugin manifest, marketplace plugin manifest, and Skill metadata are `0.2.2`.
+- [x] Existing durable-runtime documentation remains valid and unchanged in behavior.
 
 ## Release engineering
 
 - [x] Public repository remains `Soph1yzzz/mandatemarshal` with default branch `main`.
-- [x] Existing `v0.1.0` release remains untouched.
-- [ ] v0.2.0 release commit created from the audited working tree.
+- [x] Existing v0.1.0, v0.2.0, and v0.2.1 releases remain untouched.
+- [ ] v0.2.2 release commit created from the audited working tree.
 - [ ] `main` pushed and GitHub Actions CI verified on the release commit.
-- [ ] Annotated `v0.2.0` tag pushed.
-- [ ] GitHub Release `MandateMarshal v0.2.0` published from that tag.
+- [ ] Annotated `v0.2.2` tag pushed.
+- [ ] GitHub Release `MandateMarshal v0.2.2` published from that tag.
 
-Publication must not proceed if the reproducible v0.2 gate is red or if local/private artifacts appear in the Git/package publication surface.
+Publication must not proceed if the reproducible v0.2.2 gate is red or if local/private artifacts appear in the Git/package publication surface.
