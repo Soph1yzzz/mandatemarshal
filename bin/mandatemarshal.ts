@@ -48,7 +48,9 @@ async function handleVersion(compact: boolean): Promise<void> {
       `MandateMarshal ${info.version}`,
       `Pin: ${info.pinnedVersion === null ? "none" : `v${info.pinnedVersion}`}`,
       `Plugin: ${info.installedPluginVersion ?? "not installed"}`,
-      `Skill: ${info.legacySkillVersion ?? "not installed"}`,
+      `Cache: ${info.pluginCacheVersion ?? "not installed"}`,
+      `Skill: ${info.pluginCacheSkillVersion ?? "not installed"}`,
+      `Legacy Skill: ${info.legacySkillVersion ?? "none"}`,
       `Status: ${displayStatus}`,
     ].join("\n"),
   );

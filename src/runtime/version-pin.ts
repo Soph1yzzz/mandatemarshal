@@ -1,14 +1,27 @@
-import { copyFile, cp, mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, open, readFile, rename, stat, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 const REPOSITORY = "Soph1yzzz/mandatemarshal";
 const MARKETPLACE = "mandatemarshal";
 const PLUGIN_SELECTOR = "mandatemarshal@mandatemarshal";
-const PIN_STATE_SCHEMA = 1 as const;
+const PIN_STATE_SCHEMA = 2 as const;
 const PIN_EXEC_GUARD = "MANDATEMARSHAL_PINNED_EXEC";
 
 export interface MandateMarshalPinRecord {
+  schemaVersion: 2;
+  version: string;
+  ref: string;
+  repository: string;
+  marketplace: string;
+  marketplaceSource: string;
+  runtimeSource: string;
+  pluginCacheSource: string;
+  pinnedAt: string;
+}
+
+interface MandateMarshalPinRecordV1 {
   schemaVersion: 1;
   version: string;
   ref: string;
@@ -23,6 +36,8 @@ export interface MandateMarshalPinStatus {
   status: "pinned" | "unpinned" | "drifted";
   record: MandateMarshalPinRecord | null;
   installedPluginVersion: string | null;
+  pluginCacheVersion: string | null;
+  pluginCacheSkillVersion: string | null;
   legacySkillVersion: string | null;
 }
 
@@ -31,6 +46,8 @@ export interface MandateMarshalVersionInfo {
   pinStatus: MandateMarshalPinStatus["status"];
   pinnedVersion: string | null;
   installedPluginVersion: string | null;
+  pluginCacheVersion: string | null;
+  pluginCacheSkillVersion: string | null;
   legacySkillVersion: string | null;
   aligned: boolean;
 }
@@ -50,7 +67,6 @@ export interface PinRuntimeOptions {
   runner?: PinCommandRunner;
   now?: () => Date;
   codexHome?: string;
-  syncLegacyCopies?: boolean;
   which?: (command: string) => string | undefined;
 }
 
@@ -74,7 +90,9 @@ export async function pinMandateMarshal(
   const runner = options.runner ?? createBunCommandRunner();
   const codexBin = await resolveCodexBin(options);
 
-  await verifyPublishedTarget(target.version, target.ref, options.fetchImpl ?? fetch);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const published = await verifyPublishedTarget(target.version, target.ref, fetchImpl);
+  const legacySkill = await inspectLegacySkillForCleanup(options.home, options.codexHome, fetchImpl);
 
   const currentPlugin = await readInstalledPlugin(runner, codexBin);
   const marketplaceConfigured = await isMarketplaceConfigured(runner, codexBin);
@@ -118,14 +136,20 @@ export async function pinMandateMarshal(
     throw new Error("PIN_VERIFY_FAILED: Codex did not report the installed MandateMarshal plugin source path");
   }
 
-  const runtimeSource = resolve(marketplaceResult.installedRoot);
-  const pluginSource = resolve(installed.source.path);
-  const pluginRelative = relative(runtimeSource, pluginSource);
+  const marketplaceSource = resolve(marketplaceResult.installedRoot);
+  const installedMarketplacePluginSource = resolve(installed.source.path);
+  const pluginRelative = relative(marketplaceSource, installedMarketplacePluginSource);
   if (pluginRelative.startsWith("..") || isAbsolute(pluginRelative)) {
-    throw new Error(`PIN_VERIFY_FAILED: installed plugin source escaped pinned marketplace root: ${pluginSource}`);
+    throw new Error(
+      `PIN_VERIFY_FAILED: installed marketplace plugin source escaped pinned marketplace root: ${installedMarketplacePluginSource}`,
+    );
   }
-  if (options.syncLegacyCopies !== false) {
-    await syncLegacyCodexCopies(pluginSource, options.home, options.codexHome);
+
+  const runtimeSource = marketplaceSource;
+  const pluginCacheSource = expectedPluginCacheSource(target.version, options.home, options.codexHome);
+  await verifyPluginCache(pluginCacheSource, target.version, published.skillHash);
+  if (legacySkill.kind === "managed") {
+    await unlink(legacySkill.skillPath);
   }
 
   const record: MandateMarshalPinRecord = {
@@ -134,8 +158,9 @@ export async function pinMandateMarshal(
     ref: target.ref,
     repository: REPOSITORY,
     marketplace: MARKETPLACE,
-    pluginSource,
+    marketplaceSource,
     runtimeSource,
+    pluginCacheSource,
     pinnedAt: (options.now ?? (() => new Date()))().toISOString(),
   };
   await writePinRecord(record, options.home);
@@ -150,6 +175,8 @@ export async function inspectMandateMarshalVersion(options: PinRuntimeOptions = 
     pinStatus: pin.status,
     pinnedVersion: pin.record?.version ?? null,
     installedPluginVersion: pin.installedPluginVersion,
+    pluginCacheVersion: pin.pluginCacheVersion,
+    pluginCacheSkillVersion: pin.pluginCacheSkillVersion,
     legacySkillVersion: pin.legacySkillVersion,
     aligned:
       pin.status === "unpinned"
@@ -157,26 +184,42 @@ export async function inspectMandateMarshalVersion(options: PinRuntimeOptions = 
         : pin.status === "pinned" &&
           pin.record?.version === packageVersion &&
           pin.installedPluginVersion === packageVersion &&
-          pin.legacySkillVersion === packageVersion,
+          pin.pluginCacheVersion === packageVersion &&
+          pin.pluginCacheSkillVersion === packageVersion &&
+          pin.legacySkillVersion === null,
   };
 }
 
 export async function inspectMandateMarshalPin(options: PinRuntimeOptions = {}): Promise<MandateMarshalPinStatus> {
-  const record = await readPinRecord(options.home);
+  const record = await readPinRecord(options.home, options.codexHome);
   if (!record) {
-    return { status: "unpinned", record: null, installedPluginVersion: null, legacySkillVersion: null };
+    return {
+      status: "unpinned",
+      record: null,
+      installedPluginVersion: null,
+      pluginCacheVersion: null,
+      pluginCacheSkillVersion: null,
+      legacySkillVersion: await readLegacySkillVersion(options.home, options.codexHome),
+    };
   }
 
   const runner = options.runner ?? createBunCommandRunner();
   const codexBin = await resolveCodexBin(options);
   const installed = await readInstalledPlugin(runner, codexBin).catch(() => undefined);
   const installedPluginVersion = installed?.version ?? null;
+  const cache = await inspectPluginCache(record.pluginCacheSource);
   const legacySkillVersion = await readLegacySkillVersion(options.home, options.codexHome);
-  const aligned = installedPluginVersion === record.version && legacySkillVersion === record.version;
+  const aligned =
+    installedPluginVersion === record.version &&
+    cache.pluginVersion === record.version &&
+    cache.skillVersion === record.version &&
+    legacySkillVersion === null;
   return {
     status: aligned ? "pinned" : "drifted",
     record,
     installedPluginVersion,
+    pluginCacheVersion: cache.pluginVersion,
+    pluginCacheSkillVersion: cache.skillVersion,
     legacySkillVersion,
   };
 }
@@ -185,7 +228,7 @@ export async function maybeDelegateToPinnedCli(args: readonly string[], options:
   if (process.env[PIN_EXEC_GUARD] === "1") return undefined;
   if (args[0] === "pin") return undefined;
 
-  const record = await readPinRecord(options.home);
+  const record = await readPinRecord(options.home, options.codexHome);
   if (!record) return undefined;
 
   const pinnedBin = join(record.runtimeSource, "bin", "mandatemarshal.ts");
@@ -215,7 +258,10 @@ export async function readMandateMarshalPackageVersion(): Promise<string> {
   return packageJson.version;
 }
 
-export async function readPinRecord(home = homedir()): Promise<MandateMarshalPinRecord | undefined> {
+export async function readPinRecord(
+  home = homedir(),
+  codexHome?: string,
+): Promise<MandateMarshalPinRecord | undefined> {
   const path = defaultPinStatePath(home);
   let content: string;
   try {
@@ -224,22 +270,46 @@ export async function readPinRecord(home = homedir()): Promise<MandateMarshalPin
     if (isErrorCode(error, "ENOENT")) return undefined;
     throw error;
   }
-  const record = JSON.parse(content) as Partial<MandateMarshalPinRecord>;
+  const raw = JSON.parse(content) as Partial<MandateMarshalPinRecord> & Partial<MandateMarshalPinRecordV1>;
   if (
-    record.schemaVersion !== PIN_STATE_SCHEMA ||
-    !isVersion(record.version) ||
-    record.ref !== `v${record.version}` ||
-    record.repository !== REPOSITORY ||
-    record.marketplace !== MARKETPLACE ||
-    typeof record.pluginSource !== "string" ||
-    !record.pluginSource.trim() ||
-    typeof record.runtimeSource !== "string" ||
-    !record.runtimeSource.trim() ||
-    typeof record.pinnedAt !== "string"
+    !isVersion(raw.version) ||
+    raw.ref !== `v${raw.version}` ||
+    raw.repository !== REPOSITORY ||
+    raw.marketplace !== MARKETPLACE ||
+    typeof raw.runtimeSource !== "string" ||
+    !raw.runtimeSource.trim() ||
+    typeof raw.pinnedAt !== "string"
   ) {
     throw new Error(`PIN_STATE_INVALID:${path}`);
   }
-  return record as MandateMarshalPinRecord;
+
+  if (raw.schemaVersion === 2) {
+    if (
+      typeof raw.marketplaceSource !== "string" ||
+      !raw.marketplaceSource.trim() ||
+      typeof raw.pluginCacheSource !== "string" ||
+      !raw.pluginCacheSource.trim()
+    ) {
+      throw new Error(`PIN_STATE_INVALID:${path}`);
+    }
+    return raw as MandateMarshalPinRecord;
+  }
+
+  if (raw.schemaVersion === 1 && typeof raw.pluginSource === "string" && raw.pluginSource.trim()) {
+    return {
+      schemaVersion: 2,
+      version: raw.version,
+      ref: raw.ref,
+      repository: REPOSITORY,
+      marketplace: MARKETPLACE,
+      marketplaceSource: resolve(raw.runtimeSource),
+      runtimeSource: resolve(raw.runtimeSource),
+      pluginCacheSource: expectedPluginCacheSource(raw.version, home, codexHome),
+      pinnedAt: raw.pinnedAt,
+    };
+  }
+
+  throw new Error(`PIN_STATE_INVALID:${path}`);
 }
 
 async function resolvePinTarget(requested: string, fetchImpl: typeof fetch): Promise<{ version: string; ref: string }> {
@@ -259,7 +329,11 @@ async function resolvePinTarget(requested: string, fetchImpl: typeof fetch): Pro
   return { version, ref: `v${version}` };
 }
 
-async function verifyPublishedTarget(version: string, ref: string, fetchImpl: typeof fetch): Promise<void> {
+async function verifyPublishedTarget(
+  version: string,
+  ref: string,
+  fetchImpl: typeof fetch,
+): Promise<{ skillHash: string }> {
   const release = await fetchImpl(`https://api.github.com/repos/${REPOSITORY}/releases/tags/${encodeURIComponent(ref)}`, {
     headers: { Accept: "application/vnd.github+json", "User-Agent": "MandateMarshal" },
   });
@@ -280,10 +354,12 @@ async function verifyPublishedTarget(version: string, ref: string, fetchImpl: ty
     { headers: { "User-Agent": "MandateMarshal" } },
   );
   if (!skillResponse.ok) throw new Error(`PIN_TARGET_SKILL_MISSING:${ref}`);
-  const skillVersion = parseSkillVersion(await skillResponse.text());
+  const skillContent = await skillResponse.text();
+  const skillVersion = parseSkillVersion(skillContent);
   if (skillVersion !== version) {
     throw new Error(`PIN_TARGET_VERSION_MISMATCH: package target ${version}, Skill ${skillVersion ?? "missing"}`);
   }
+  return { skillHash: skillSha256(skillContent) };
 }
 
 function normalizeVersion(value: string): string {
@@ -299,6 +375,98 @@ function isVersion(value: unknown): value is string {
 export function parseSkillVersion(content: string): string | undefined {
   const match = content.match(/^version:\s*["']?([^"'\s]+)["']?\s*$/mu);
   return match?.[1];
+}
+
+export function expectedPluginCacheSource(version: string, home = homedir(), codexHome?: string): string {
+  const targetCodexHome = resolve(codexHome ?? process.env.CODEX_HOME ?? join(home, ".codex"));
+  return join(targetCodexHome, "plugins", "cache", MARKETPLACE, "mandatemarshal", version);
+}
+
+async function verifyPluginCache(pluginCacheSource: string, version: string, publishedSkillHash: string): Promise<void> {
+  const manifestPath = join(pluginCacheSource, ".codex-plugin", "plugin.json");
+  const skillPath = join(pluginCacheSource, "skills", "mandatemarshal", "SKILL.md");
+  let manifestContent: string;
+  let skillContent: string;
+  try {
+    [manifestContent, skillContent] = await Promise.all([
+      readFile(manifestPath, "utf8"),
+      readFile(skillPath, "utf8"),
+    ]);
+  } catch (error) {
+    if (isErrorCode(error, "ENOENT")) {
+      throw new Error(`PIN_CACHE_MISSING:${pluginCacheSource}`);
+    }
+    throw error;
+  }
+
+  const manifest = JSON.parse(manifestContent) as { version?: unknown };
+  if (manifest.version !== version) {
+    throw new Error(`PIN_CACHE_VERSION_MISMATCH: expected ${version}, observed ${String(manifest.version)}`);
+  }
+  const skillVersion = parseSkillVersion(skillContent);
+  if (skillVersion !== version) {
+    throw new Error(`PIN_CACHE_SKILL_VERSION_MISMATCH: expected ${version}, observed ${skillVersion ?? "missing"}`);
+  }
+  if (skillSha256(skillContent) !== publishedSkillHash) {
+    throw new Error(`PIN_CACHE_SKILL_HASH_MISMATCH:${skillPath}`);
+  }
+}
+
+async function inspectPluginCache(
+  pluginCacheSource: string,
+): Promise<{ pluginVersion: string | null; skillVersion: string | null }> {
+  try {
+    const [manifestContent, skillContent] = await Promise.all([
+      readFile(join(pluginCacheSource, ".codex-plugin", "plugin.json"), "utf8"),
+      readFile(join(pluginCacheSource, "skills", "mandatemarshal", "SKILL.md"), "utf8"),
+    ]);
+    const manifest = JSON.parse(manifestContent) as { version?: unknown };
+    return {
+      pluginVersion: isVersion(manifest.version) ? manifest.version : null,
+      skillVersion: parseSkillVersion(skillContent) ?? null,
+    };
+  } catch (error) {
+    if (isErrorCode(error, "ENOENT")) return { pluginVersion: null, skillVersion: null };
+    throw error;
+  }
+}
+
+async function inspectLegacySkillForCleanup(
+  home = homedir(),
+  codexHome: string | undefined,
+  fetchImpl: typeof fetch,
+): Promise<{ kind: "absent" } | { kind: "managed"; skillPath: string }> {
+  const targetCodexHome = resolve(codexHome ?? process.env.CODEX_HOME ?? join(home, ".codex"));
+  const directory = join(targetCodexHome, "skills", "mandatemarshal");
+  const skillPath = join(directory, "SKILL.md");
+  let content: string;
+  try {
+    content = await readFile(skillPath, "utf8");
+  } catch (error) {
+    if (isErrorCode(error, "ENOENT")) return { kind: "absent" };
+    throw error;
+  }
+
+  const version = parseSkillVersion(content);
+  if (!version) throw new Error(`LEGACY_SKILL_CONFLICT:${skillPath}:missing-version`);
+  const release = await fetchImpl(`https://api.github.com/repos/${REPOSITORY}/releases/tags/v${version}`, {
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "MandateMarshal" },
+  });
+  if (!release.ok) throw new Error(`LEGACY_SKILL_CONFLICT:${skillPath}:unreleased-version-${version}`);
+  const response = await fetchImpl(
+    `https://raw.githubusercontent.com/${REPOSITORY}/v${version}/skills/orchestration/SKILL.md`,
+    { headers: { "User-Agent": "MandateMarshal" } },
+  );
+  if (!response.ok) throw new Error(`LEGACY_SKILL_CONFLICT:${skillPath}:unverified-version-${version}`);
+  const published = await response.text();
+  if (skillSha256(content) !== skillSha256(published)) {
+    throw new Error(`LEGACY_SKILL_CONFLICT:${skillPath}:content-mismatch`);
+  }
+  return { kind: "managed", skillPath };
+}
+
+function skillSha256(content: string): string {
+  return createHash("sha256").update(content.replace(/\r\n?/gu, "\n")).digest("hex");
 }
 
 async function readInstalledPlugin(runner: PinCommandRunner, codexBin: string) {
@@ -378,27 +546,6 @@ async function readLegacySkillVersion(home = homedir(), codexHome?: string): Pro
   }
 }
 
-async function syncLegacyCodexCopies(pluginSource: string, home = homedir(), codexHome?: string): Promise<void> {
-  const targetCodexHome = resolve(codexHome ?? process.env.CODEX_HOME ?? join(home, ".codex"));
-  const sourceSkill = join(pluginSource, "skills", "mandatemarshal");
-  const targetSkill = join(targetCodexHome, "skills", "mandatemarshal");
-  if (!(await isDirectory(sourceSkill))) throw new Error(`PIN_PLUGIN_SKILL_MISSING:${sourceSkill}`);
-  await mkdir(dirname(targetSkill), { recursive: true });
-  await cp(sourceSkill, targetSkill, { recursive: true, force: true });
-
-  const targetAgents = join(targetCodexHome, "agents");
-  await mkdir(targetAgents, { recursive: true });
-  for (const name of [
-    "mandatemarshal_routine_implementer.toml",
-    "mandatemarshal_complex_implementer.toml",
-    "mandatemarshal_fresh_reviewer.toml",
-  ]) {
-    const source = join(pluginSource, "agents", name);
-    if (!(await isFile(source))) throw new Error(`PIN_PLUGIN_AGENT_MISSING:${source}`);
-    await copyFile(source, join(targetAgents, name));
-  }
-}
-
 async function writePinRecord(record: MandateMarshalPinRecord, home = homedir()): Promise<void> {
   const path = defaultPinStatePath(home);
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
@@ -414,15 +561,6 @@ async function writePinRecord(record: MandateMarshalPinRecord, home = homedir())
     await rename(temp, path);
   } catch (error) {
     await unlink(temp).catch(() => undefined);
-    throw error;
-  }
-}
-
-async function isDirectory(path: string): Promise<boolean> {
-  try {
-    return (await stat(path)).isDirectory();
-  } catch (error) {
-    if (isErrorCode(error, "ENOENT")) return false;
     throw error;
   }
 }

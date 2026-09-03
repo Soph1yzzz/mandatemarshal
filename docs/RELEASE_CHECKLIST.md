@@ -1,78 +1,89 @@
-# MandateMarshal v0.2.3 Release Checklist
+# MandateMarshal v0.2.4 Release Checklist
 
-This checklist is the publication gate for MandateMarshal v0.2.3.
+This checklist is the publication gate for MandateMarshal v0.2.4.
 
 ## Scope
 
-v0.2.3 is a narrow Windows pinning hotfix. It preserves the v0.2.2 release-pinning/version UX and fixes Codex CLI discovery when `codex` is installed but not visible on the current shell PATH. It does not change authority, routing, durable recovery, reviewer behavior, or provider execution semantics.
+v0.2.4 is a narrow Skill-discovery canonicalization hotfix. It does not change authority, routing, durable recovery, reviewer behavior, activation semantics, or provider execution semantics.
 
-## Code and authority contracts
+The release changes only pin/discovery correctness:
 
-- [x] Provider-neutral core contains no provider/model branding.
-- [x] Fresh Reviewer protocol remains exactly `PASS | FIX | ESCALATE`.
-- [x] No silent model/role/effort fallback exists in the Codex adapter.
-- [x] Durable recovery behavior is unchanged from v0.2.2.
-- [x] Activation behavior is unchanged from v0.2.2.
+- Codex's exact versioned plugin cache is the only runtime Skill authority.
+- Marketplace checkout remains the pinned CLI runtime source.
+- Legacy global Skill mirroring is removed.
+- No sibling-cache or legacy-Skill search fallback is permitted.
 
-## Pin/update contract
+## Canonical cache contract
 
-- [x] `mandatemarshal pin <version>` and `mandatemarshal pin latest` retain exact released-tag semantics.
-- [x] `mandatemarshal pin status` remains non-delegated so it can diagnose an older pinned runtime.
-- [x] `mandatemarshal version` reports runtime, pin, installed-plugin, and legacy-Skill versions; `--version`/`-v` report the runtime version only.
-- [x] Package, root plugin manifest, marketplace plugin manifest, canonical Skill, and marketplace Skill all report `0.2.3`.
-- [x] Pinning verifies the GitHub Release before changing Codex plugin state.
-- [x] Pinning verifies the installed Codex plugin version before committing the pin record.
-- [x] Pin state remains outside target repositories under `~/.mandatemarshal/pin.json`.
-- [x] Legacy Skill/agent copies remain synchronized from the pinned plugin package.
+- [x] Pin computes exactly `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` (or the equivalent path under configured `CODEX_HOME`).
+- [x] The exact cache must contain `.codex-plugin/plugin.json` with the requested version.
+- [x] The exact cache must contain `skills/mandatemarshal/SKILL.md` with the requested version.
+- [x] The cache Skill LF-normalized SHA-256 must match the canonical Skill from the published GitHub Release.
+- [x] Missing exact cache fails with `PIN_CACHE_MISSING`; no alternate copy is searched.
+- [x] Cache Skill hash/version mismatch fails closed.
 
-## Windows Codex CLI discovery
+## Legacy global Skill handling
 
-- [x] Explicit `PinRuntimeOptions.codexBin` remains highest priority.
-- [x] `MANDATEMARSHAL_CODEX_BIN` remains an explicit trusted override.
-- [x] Active PATH is checked with `Bun.which("codex")`.
-- [x] Known Codex locations under `CODEX_HOME` are checked when PATH has no Codex executable.
-- [x] Windows npm global Codex locations are checked as a compatibility fallback.
-- [x] Missing Codex CLI fails with `CODEX_CLI_NOT_FOUND` instead of an opaque `uv_spawn 'codex'` ENOENT.
-- [x] Unit regression covers a Windows Codex executable under `~/.codex/plugins/.plugin-appserver/codex.exe` while PATH discovery is disabled.
-- [x] The detected plugin-appserver Codex binary was verified to expose `codex plugin` management commands.
-- [x] Real normal-PowerShell acceptance test successfully pinned v0.2.2 despite `codex` not being on that shell's PATH.
-- [x] The same acceptance run was observable as pinned by the v0.2.3 `pin status` path.
+- [x] Pin no longer creates or refreshes `~/.codex/skills/mandatemarshal`.
+- [x] A pre-existing legacy `SKILL.md` is inspected before Codex installation state is changed.
+- [x] Its declared version is resolved to the corresponding published MandateMarshal Release.
+- [x] Automatic deletion is allowed only when the LF-normalized content hash matches that official released Skill.
+- [x] Only the proven legacy `SKILL.md` is deleted; neighboring files/directories are preserved.
+- [x] Customized or unverifiable content fails with `LEGACY_SKILL_CONFLICT` and is not deleted.
+- [x] Successful pin requires no legacy global MandateMarshal Skill to remain discoverable.
 
-## Verified quality gates
+## Pin state and version reporting
 
-- [x] Strict TypeScript typecheck passes with `0` diagnostics.
-- [x] Full test suite passes: `86/86` tests, `294` assertions.
-- [x] `bun audit` reports `0` vulnerabilities.
-- [x] `git diff --check` is clean.
-- [x] Package dry-run contains the intended v0.2.3 distribution surface (`76` files).
-- [x] Local-only `docs/ROADMAP.md`, `.stackmarshal/`, provenance bundle/master, and generated runtime state remain excluded from publication.
+- [x] Pin-state schema v2 records `marketplaceSource`, `runtimeSource`, and `pluginCacheSource` separately.
+- [x] Existing schema v1 records are read deterministically and mapped to the exact expected versioned-cache path without filesystem search.
+- [x] `mandatemarshal version` reports runtime, pin, installed plugin, cache manifest, cache Skill, and legacy Skill state.
+- [x] Any remaining legacy global Skill is reported as drift.
 
-## Reproducible v0.2.3 release gate
+## Version consistency
+
+- [x] `package.json` reports `0.2.4`.
+- [x] Root Codex plugin manifest reports `0.2.4`.
+- [x] Marketplace plugin manifest reports `0.2.4`.
+- [x] Canonical Skill frontmatter reports `0.2.4`.
+- [x] Marketplace Skill frontmatter reports `0.2.4`.
+- [x] Conformance tests enforce release-version equality across these surfaces.
+
+## Required verification
+
+Run from a locked dependency checkout:
 
 ```bash
-bun install --frozen-lockfile
+bun run typecheck
+bun test
 bun audit
-bun run check
 npm pack --dry-run --json
 ```
 
-Do not invoke real Codex coding agents as part of this patch-release publication procedure. Codex-specific validation is limited to plugin-manager/CLI discovery and pin management.
+Required results before publication:
 
-## Documentation synchronization
+- [x] Strict TypeScript diagnostics: `0`.
+- [x] Full Bun test suite: `90/90` pass (`306` assertions).
+- [x] Dependency vulnerabilities: `0`.
+- [x] `git diff --check`: clean.
+- [x] Package dry-run: `mandatemarshal@0.2.4`, `76` files, no local/private artifacts (`docs/ROADMAP.md`, `.stackmarshal/`, archived AuthorityFlow source/master).
+- [x] Publication-set scan finds no secret, credential, personal absolute path, dangerous Codex bypass flag, or obsolete legacy-sync claim.
 
-- [x] `README.md` uses v0.2.3 as the exact-pin example and documents the one-command version check.
-- [x] `docs/CODEX_SETUP.md` documents Windows Codex CLI fallback discovery.
-- [x] `docs/DECISIONS.md` records D-030 for installed-Codex resolution.
-- [x] `CHANGELOG.md` contains v0.2.3 dated 2026-09-03.
-- [x] package/plugin/Skill metadata are aligned at `0.2.3`.
+Do not invoke real Codex coding agents as part of this patch-release publication procedure. Codex-specific acceptance may use plugin-manager/pin-management commands only.
 
-## Release engineering
+## Documentation
 
-- [x] Public repository remains `Soph1yzzz/mandatemarshal` with default branch `main`.
-- [x] Existing v0.1.0, v0.2.0, v0.2.1, and v0.2.2 releases remain untouched.
-- [ ] v0.2.3 release commit created from the audited working tree.
-- [ ] `main` pushed and GitHub Actions CI verified on the release commit.
-- [ ] Annotated `v0.2.3` tag pushed.
-- [ ] GitHub Release `MandateMarshal v0.2.3` published from that tag.
+- [x] `README.md` documents the versioned plugin cache as the sole runtime Skill authority.
+- [x] `docs/CODEX_SETUP.md` documents exact cache verification and legacy-Skill removal rules.
+- [x] `SECURITY.md` documents cache hash verification and fail-closed legacy handling.
+- [x] `docs/DECISIONS.md` contains the v0.2.4 canonicalization decision.
+- [x] `CHANGELOG.md` contains v0.2.4 dated 2026-09-03.
 
-Publication must not proceed if the v0.2.3 gate is red or if local/private artifacts appear in the Git/package publication surface.
+## Publication
+
+- [x] Existing v0.1.0 through v0.2.3 releases remain untouched.
+- [ ] v0.2.4 release commit created from the audited working tree.
+- [ ] GitHub Actions passes on Ubuntu and Windows.
+- [ ] Annotated `v0.2.4` tag pushed.
+- [ ] GitHub Release `MandateMarshal v0.2.4` published from that tag.
+
+Publication must not proceed if this gate is red or if the exact versioned cache cannot be proven canonical without search/fallback.

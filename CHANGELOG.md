@@ -4,6 +4,16 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-03
+
+### Fixed
+
+- Canonicalized Codex Skill discovery on the exact versioned plugin cache instead of treating the marketplace checkout and legacy global Skill as interchangeable runtime sources.
+- `mandatemarshal pin` now verifies the cache plugin version, cache Skill version, and LF-normalized cache Skill SHA-256 against the published release and fails closed instead of searching another copy.
+- Automatic legacy global Skill mirroring was removed. A proven official legacy `SKILL.md` is deleted only after release-provenance verification; customized same-name Skill content blocks pinning before Codex installation state changes, and neighboring files are preserved.
+- Pin-state schema v2 records marketplace/runtime checkout separately from the canonical versioned plugin-cache source, while schema v1 records are migrated deterministically when read.
+- `mandatemarshal version` now reports plugin-cache and cache-Skill versions explicitly and treats any remaining legacy global Skill as drift.
+
 ## [0.2.3] - 2026-09-03
 
 ### Fixed

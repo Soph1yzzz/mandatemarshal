@@ -24,24 +24,26 @@ mandatemarshal pin latest
 to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
 
 ```bash
-mandatemarshal pin 0.2.3
+mandatemarshal pin 0.2.4
 ```
 
-for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects plugin-version drift.
+for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift.
 
-`mandatemarshal version` reports the runtime, pin, installed plugin, and legacy Skill versions together. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version.
+`mandatemarshal version` reports the runtime, pin, installed plugin, exact versioned-cache manifest/Skill versions, and any legacy global Skill together. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version.
 
 The pin flow:
 
 1. resolves and verifies a published MandateMarshal GitHub Release before mutating Codex state;
-2. verifies the release's plugin manifest and Skill metadata report the same version;
-3. configures the MandateMarshal Git repository as a Codex plugin marketplace at the exact release tag;
-4. installs the `mandatemarshal@mandatemarshal` plugin from that marketplace;
-5. verifies Codex reports the expected installed plugin version;
-6. mirrors the pinned Skill and agent profiles into the legacy global MandateMarshal locations under `~/.codex/skills/mandatemarshal` and `~/.codex/agents/` so older discovery paths cannot keep a stale copy active;
-7. stores the exact marketplace/runtime source under `~/.mandatemarshal/pin.json`.
+2. verifies the release's plugin manifest and canonical Skill metadata report the same version;
+3. checks any pre-existing global `~/.codex/skills/mandatemarshal/SKILL.md` before mutation; only an official released MandateMarshal Skill whose LF-normalized content hash matches its own release is eligible for automatic removal, while customized content blocks pinning;
+4. configures the MandateMarshal Git repository as a Codex plugin marketplace at the exact release tag;
+5. installs the `mandatemarshal@mandatemarshal` plugin from that marketplace;
+6. verifies Codex reports the expected installed plugin version;
+7. computes exactly `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` as the canonical runtime plugin cache and verifies its plugin manifest version, Skill version, and LF-normalized Skill SHA-256 against the published release;
+8. removes only the proven legacy global `SKILL.md` file so native plugin discovery is the only runtime Skill authority without deleting unrelated neighboring files;
+9. stores the marketplace/runtime checkout and canonical versioned-cache source separately under `~/.mandatemarshal/pin.json`.
 
-Normal MandateMarshal CLI commands then delegate to the CLI source inside the pinned marketplace checkout. This keeps the plugin metadata, Skill, agent profiles, legacy compatibility copies, and runtime implementation on the same release rather than updating only one surface.
+Normal MandateMarshal CLI commands still delegate to the CLI source inside the pinned marketplace checkout. Skill discovery is different: only the exact verified versioned plugin cache is authoritative. MandateMarshal does not search alternative cache copies or fall back to the legacy global Skill when the canonical cache is missing or mismatched.
 
 Start a new Codex session after changing the pin so Codex reloads the selected Skill and agent metadata. On Windows, MandateMarshal resolves Codex from PATH first and then from known Codex/npm install locations, so `pin` does not require `codex` itself to be on the current shell PATH.
 

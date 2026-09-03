@@ -1,6 +1,6 @@
 {
   "name": "mandatemarshal",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Authority-aware orchestration for Codex and coding agents with bounded autonomy, durable recovery, fresh review, deterministic evidence, and no silent fallback.",
   "keywords": [
     "agent-skills",

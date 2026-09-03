@@ -172,3 +172,11 @@ The pin record lives outside target repositories under `~/.mandatemarshal/pin.js
 ### D-030 — Pinning resolves the installed Codex CLI rather than assuming shell PATH
 
 **Decision:** `mandatemarshal pin` resolves Codex from an explicit override, the active PATH, and known Codex/npm install locations before failing. A Windows shell where `codex` is installed but absent from the inherited PATH must not make release pinning unusable.
+
+## v0.2.4 Skill discovery canonicalization hotfix — 2026-09-03
+
+### D-031 — Codex's exact versioned plugin cache is the only runtime Skill authority
+
+**Decision:** Pinning computes `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` directly and requires that exact cache to contain the expected plugin manifest version and a Skill whose version and LF-normalized content SHA-256 match the published release. MandateMarshal does not search sibling caches or fall back to `~/.codex/skills/mandatemarshal` when that exact cache is absent or inconsistent.
+
+A pre-existing global MandateMarshal `SKILL.md` is removed only when its LF-normalized content matches the official Skill from its own published release. Customized or unverifiable same-name global Skill content causes pinning to stop before Codex installation state is changed, and neighboring files are left untouched. Marketplace checkout remains the pinned CLI runtime source; Skill authority and CLI runtime source are recorded separately.
