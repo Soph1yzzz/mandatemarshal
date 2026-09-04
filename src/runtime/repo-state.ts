@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { readlink, readdir, readFile, stat } from "node:fs/promises";
-import { relative, resolve } from "node:path";
+import { lstat, readlink, readdir, readFile, stat } from "node:fs/promises";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { candidateIdFromParts } from "../core/candidate";
 import type { RepositoryState } from "../core/types";
 
@@ -41,6 +41,29 @@ async function fileDigest(root: string): Promise<string> {
   return hash.digest("hex");
 }
 
+async function gitUntrackedDigest(root: string, paths: readonly string[]): Promise<string> {
+  const hash = createHash("sha256");
+  for (const gitPath of [...paths].sort()) {
+    const absolute = resolve(root, gitPath);
+    const rel = relative(root, absolute);
+    if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+      throw new Error(`GIT_UNTRACKED_PATH_ESCAPE:${gitPath}`);
+    }
+    const info = await lstat(absolute);
+    const normalized = rel.replace(/\\/g, "/");
+    if (info.isSymbolicLink()) {
+      hash.update(`L:${normalized}:${await readlink(absolute)}\n`);
+    } else if (info.isFile()) {
+      hash.update(`F:${normalized}:${info.size}:`);
+      hash.update(await readFile(absolute));
+      hash.update("\n");
+    } else {
+      hash.update(`O:${normalized}\n`);
+    }
+  }
+  return hash.digest("hex");
+}
+
 export async function captureRepositoryState(root: string): Promise<RepositoryState> {
   const cwd = resolve(root);
   const inside = await run(cwd, ["git", "rev-parse", "--is-inside-work-tree"]);
@@ -51,22 +74,25 @@ export async function captureRepositoryState(root: string): Promise<RepositorySt
     };
   }
 
-  const [head, status] = await Promise.all([
+  const [head, status, untrackedResult] = await Promise.all([
     run(cwd, ["git", "rev-parse", "HEAD"]),
     run(cwd, ["git", "status", "--porcelain=v1", "-uall"]),
+    run(cwd, ["git", "ls-files", "--others", "--exclude-standard", "-z"]),
   ]);
   const lines = status.stdout.split(/\r?\n/).filter(Boolean);
-  const untracked = lines.filter((line) => line.startsWith("?? ")).map((line) => line.slice(3));
+  if (untrackedResult.code !== 0) throw new Error(`GIT_UNTRACKED_LIST_FAILED:${untrackedResult.stderr.trim()}`);
+  const untracked = untrackedResult.stdout.split("\0").filter(Boolean);
 
   return {
     available: true,
     ...(head.code === 0 ? { baseRevision: head.stdout.trim() } : {}),
     status: lines,
     untracked,
-    // Include worktree bytes, not only porcelain status. In particular, Git's
-    // normal diff does not contain untracked-file contents; candidate identity
-    // must still change when an untracked file changes under the same pathname.
-    digest: await fileDigest(cwd),
+    // Candidate bytes are intentionally limited to Git-relevant untracked files.
+    // Tracked mutations are already bound by the HEAD-relative binary diff below.
+    // This avoids recursively hashing unchanged tracked files and ignored artifact
+    // trees while still changing identity when an untracked file changes in place.
+    digest: await gitUntrackedDigest(cwd, untracked),
   };
 }
 

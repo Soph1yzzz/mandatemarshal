@@ -317,6 +317,76 @@ test("ensure reuses the only active project run and capture records mechanical c
   }
 });
 
+test("ensure upgrades an active same-line receipt in place and invalidates stale candidate bindings", async () => {
+  const { base, storageRoot, traceRoot } = await roots("mandatemarshal-receipt-version-upgrade-");
+  try {
+    const oldOptions = { storageRoot, traceRoot, mandatemarshalVersion: "0.2.6", idFactory: () => "upgrade" };
+    const started = await ensureRunReceipt(process.cwd(), "skill-contract", oldOptions);
+    expect(started.created).toBeTrue();
+    expect(started.upgraded).toBeFalse();
+    const captured = await captureRunCandidate(started.receipt.runId, oldOptions);
+    const candidateId = captured.candidateId;
+    if (!candidateId) throw new Error("expected mechanical candidate identity");
+    await recordRunReceiptEvent(captured.runId, "parent-verified", { candidateId }, oldOptions);
+    await recordRunReceiptEvent(captured.runId, "reviewer-started", { candidateId, threadId: "review-old" }, oldOptions);
+    await recordRunReceiptEvent(captured.runId, "review-verdict", { candidateId, verdict: "PASS" }, oldOptions);
+
+    const upgraded = await ensureRunReceipt(process.cwd(), "skill-contract", {
+      storageRoot,
+      traceRoot,
+      mandatemarshalVersion: "0.2.7",
+    });
+    expect(upgraded.created).toBeFalse();
+    expect(upgraded.upgraded).toBeTrue();
+    expect(upgraded.receipt.runId).toBe(started.receipt.runId);
+    expect(upgraded.receipt.startedWithVersion).toBe("0.2.6");
+    expect(upgraded.receipt.mandatemarshalVersion).toBe("0.2.7");
+    expect(upgraded.receipt.lastEventType).toBe("runtime-upgraded");
+    expect(upgraded.receipt.candidateId).toBeUndefined();
+    expect(upgraded.receipt.parentVerifiedCandidateId).toBeUndefined();
+    expect(upgraded.receipt.latestVerdict).toBeUndefined();
+    expect(upgraded.receipt.freshPassCandidateId).toBeUndefined();
+
+    const history = await readRunHistory(started.receipt.runId, { storageRoot, traceRoot });
+    const versionEvent = history.events.at(-1);
+    expect(versionEvent?.type).toBe("runtime-upgraded");
+    expect(versionEvent?.fromVersion).toBe("0.2.6");
+    expect(versionEvent?.toVersion).toBe("0.2.7");
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("ensure rejects receipt downgrade and cross-line automatic migration", async () => {
+  const { base, storageRoot, traceRoot } = await roots("mandatemarshal-receipt-version-reject-");
+  try {
+    const projectA = join(base, "project-a");
+    const projectB = join(base, "project-b");
+    await Promise.all([mkdir(projectA), mkdir(projectB)]);
+    await ensureRunReceipt(projectA, "skill-contract", {
+      storageRoot,
+      traceRoot,
+      mandatemarshalVersion: "0.2.7",
+      idFactory: () => "downgrade",
+    });
+    await expect(
+      ensureRunReceipt(projectA, "skill-contract", { storageRoot, traceRoot, mandatemarshalVersion: "0.2.6" }),
+    ).rejects.toThrow("RUN_RECEIPT_VERSION_DOWNGRADE_UNSUPPORTED");
+
+    await ensureRunReceipt(projectB, "skill-contract", {
+      storageRoot,
+      traceRoot,
+      mandatemarshalVersion: "0.2.6",
+      idFactory: () => "cross-line",
+    });
+    await expect(
+      ensureRunReceipt(projectB, "skill-contract", { storageRoot, traceRoot, mandatemarshalVersion: "0.3.0" }),
+    ).rejects.toThrow("RUN_RECEIPT_VERSION_UPGRADE_INCOMPATIBLE");
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
 test("tampered persistent PASS binding fails closed on read", async () => {
   const { base, storageRoot, traceRoot } = await roots("mandatemarshal-receipt-tamper-");
   try {

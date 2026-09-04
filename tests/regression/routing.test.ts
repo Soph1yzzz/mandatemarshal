@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { classifyImplementation, reclassifyBlockedRoutine } from "../../src/orchestrator/routing";
-import { DEFAULT_CODEX_ROLE_MAPPING, routingEvidenceForLane } from "../../src/adapters/codex/role-mapping";
+import {
+  CODEX_FRESH_REVIEWER_PROFILES,
+  DEFAULT_CODEX_FRESH_REVIEWER_PROFILE,
+  DEFAULT_CODEX_ROLE_MAPPING,
+  freshReviewerRoleForProfile,
+  routingEvidenceForLane,
+} from "../../src/adapters/codex/role-mapping";
 
  describe("routing regressions", () => {
   test("settled routine task maps to Luna/Max", () => {
@@ -31,6 +37,16 @@ import { DEFAULT_CODEX_ROLE_MAPPING, routingEvidenceForLane } from "../../src/ad
     const evidence = routingEvidenceForLane(DEFAULT_CODEX_ROLE_MAPPING, decision.lane, decision.reason);
     expect(evidence.requestedModel).toBe("gpt-5.6-terra");
     expect(evidence.requestedEffort).toBe("high");
+  });
+
+  test("fresh reviewer profiles are Astra-ready without silently changing the rollout default", () => {
+    expect(DEFAULT_CODEX_FRESH_REVIEWER_PROFILE).toBe("sol-high-compat");
+    expect(DEFAULT_CODEX_ROLE_MAPPING.freshReviewer).toEqual(CODEX_FRESH_REVIEWER_PROFILES["sol-high-compat"]);
+    expect(freshReviewerRoleForProfile("astra-high")).toEqual({
+      nativeRole: "fresh-reviewer",
+      model: "gpt-6-astra",
+      effort: "high",
+    });
   });
 
   test("routine blocked reclassification is explicit", () => {

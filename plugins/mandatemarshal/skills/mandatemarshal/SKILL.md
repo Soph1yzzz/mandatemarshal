@@ -1,6 +1,6 @@
 ---
 name: mandatemarshal
-version: "0.2.6"
+version: "0.2.7"
 description: >
   Authority-aware coding-agent orchestration with explicit Owner/Parent/Implementer/Fresh-Reviewer
   boundaries, deterministic execution evidence, mandatory fresh QA, and no silent model/role fallback.
@@ -81,13 +81,13 @@ Core roles are semantic:
 - `complex-implementer`
 - `fresh-reviewer`
 
-Default Codex mapping:
+Default Codex mapping during the Astra rollout window:
 
 - routine -> GPT-5.6 Luna / Max
 - complex -> GPT-5.6 Terra / High
-- fresh reviewer -> GPT-5.6 Sol / High
+- fresh reviewer -> GPT-5.6 Sol / High via the explicit `sol-high-compat` profile
 
-These mappings are adapter configuration, not core ontology. A material complexity trigger may produce an explicit `LaneReclassified` event. Failure to launch a configured lane is a capability error and never authorizes silent substitution.
+The adapter also ships an `astra-high` Fresh Reviewer profile (`gpt-6-astra` / High). Move the default selector to that profile only after the active Codex host exposes the exact model; do not silently fall back to Sol when Astra is requested. These mappings are adapter configuration, not core ontology, so future frontier reviewer generations can roll forward without changing semantic roles. A material complexity trigger may produce an explicit `LaneReclassified` event. Failure to launch a configured lane is a capability error and never authorizes silent substitution.
 
 ## Implementation packet
 

@@ -122,11 +122,11 @@ For durable Codex operations, the CLI driver persists the Codex thread ID outsid
 
 See `docs/DURABLE_RUNTIME.md`.
 
-## Skill-run receipt boundary — v0.2.6
+## Skill-run receipt boundary — v0.2.7
 
 Skill-driven Codex work and the full `DurableEngineRuntime` are distinct execution modes. A normal Skill objective does not become a durable engine run merely because it follows MandateMarshal's authority contract.
 
-v0.2.5 added a lightweight persistent run envelope for Skill-driven work so real FIX/PASS loops can still be traced without pretending the full durable runtime executed. v0.2.6 adds a high-level lifecycle bridge so the Skill can publish normal transitions without manually shuttling candidate IDs. `mandatemarshal run ensure <project>` creates or reuses the single active receipt for that project. Public receipt creation is fixed to `skill-contract`; a caller cannot label a normal Skill run as `durable-runtime`. Project-scoped and run-scoped short-lived filesystem locks serialize receipt creation and updates; stale receipt locks may be reclaimed only after the fixed lock-staleness window because the locked operation is local metadata publication, not an external provider action.
+v0.2.5 added a lightweight persistent run envelope for Skill-driven work and v0.2.6 added the high-level lifecycle bridge. v0.2.7 adds an explicit runtime-upgrade boundary and large-repository candidate optimization. `mandatemarshal run ensure <project>` creates or reuses the single active receipt for that project; when a newer stable patch on the same major/minor line is running, the same receipt is upgraded in place, the original/runtime versions are retained in evidence, and candidate/Parent/verdict/Fresh-PASS bindings are invalidated before work continues. Automatic downgrade and cross-line migration fail closed. Public receipt creation remains fixed to `skill-contract`; a caller cannot label a normal Skill run as `durable-runtime`. Project-scoped and run-scoped short-lived filesystem locks serialize receipt creation and updates; stale receipt locks may be reclaimed only after the fixed lock-staleness window because the locked operation is local metadata publication, not an external provider action.
 
 `mandatemarshal run capture <run-id>` remains the explicit low-level CLI path that records `candidate-observed`. `run advance` uses the same mechanical repository observation internally before candidate-bound lifecycle transitions; it records `candidate-observed` only when that observation changed, then evaluates the requested transition against the observed candidate. A caller still cannot substitute an arbitrary candidate observation through `run record`.
 
@@ -150,7 +150,7 @@ Host Skill discovery is outside the provider-neutral core. Some hosts decide whe
 
 A reviewer PASS authorizes exactly one candidate identity.
 
-For Git-backed repositories, the runtime helper derives identity from the base revision, status, diff, and a deterministic worktree-content digest. The additional digest closes the normal Git-diff gap for untracked-file contents. `.git` and `node_modules` are excluded from that filesystem digest. For non-Git repositories the same deterministic content-digest mechanism is the primary identity source.
+For Git-backed repositories, the runtime helper derives identity from the base revision, porcelain status, the HEAD-relative binary diff, and a deterministic digest of only non-ignored untracked entries reported by Git. Tracked mutations are therefore bound by the binary diff while untracked same-path content changes remain visible to candidate identity. Unchanged tracked files and ignored artifact trees are not recursively read, avoiding whole-repository rescans on every candidate-bound lifecycle transition. For non-Git repositories the deterministic recursive content digest remains the primary identity source.
 
 Parent re-observes candidate identity after Fresh Reviewer execution. Any mutation blocks acceptance even if the reviewer returned PASS.
 

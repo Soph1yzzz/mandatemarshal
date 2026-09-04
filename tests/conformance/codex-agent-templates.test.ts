@@ -13,6 +13,8 @@ test("Codex agent templates pin approved v0.1 mappings", async () => {
   const routine = await readTemplate("mandatemarshal_routine_implementer.toml");
   const complex = await readTemplate("mandatemarshal_complex_implementer.toml");
   const reviewer = await readTemplate("mandatemarshal_fresh_reviewer.toml");
+  const astraReviewer = await readTemplate("mandatemarshal_fresh_reviewer_astra.toml");
+  const solCompatReviewer = await readTemplate("mandatemarshal_fresh_reviewer_sol_compat.toml");
 
   expect(routine).toContain('model = "gpt-5.6-luna"');
   expect(routine).toContain('model_reasoning_effort = "max"');
@@ -21,6 +23,12 @@ test("Codex agent templates pin approved v0.1 mappings", async () => {
   expect(reviewer).toContain('model = "gpt-5.6-sol"');
   expect(reviewer).toContain('model_reasoning_effort = "high"');
   expect(reviewer).toContain('sandbox_mode = "read-only"');
+  expect(astraReviewer).toContain('model = "gpt-6-astra"');
+  expect(astraReviewer).toContain('model_reasoning_effort = "high"');
+  expect(astraReviewer).toContain('sandbox_mode = "read-only"');
+  expect(solCompatReviewer).toContain('model = "gpt-5.6-sol"');
+  expect(solCompatReviewer).toContain('model_reasoning_effort = "high"');
+  expect(solCompatReviewer).toContain('sandbox_mode = "read-only"');
 });
 
 test("package, root plugin, marketplace plugin, and canonical plugin Skill metadata share one release version", async () => {
@@ -63,6 +71,8 @@ test("all bundled agent profiles stay byte-identical to installer templates", as
     "mandatemarshal_routine_implementer.toml",
     "mandatemarshal_complex_implementer.toml",
     "mandatemarshal_fresh_reviewer.toml",
+    "mandatemarshal_fresh_reviewer_astra.toml",
+    "mandatemarshal_fresh_reviewer_sol_compat.toml",
   ]) {
     const [template, rootBundled, marketplaceBundled] = await Promise.all([
       readTemplate(name),

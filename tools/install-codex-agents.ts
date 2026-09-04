@@ -10,6 +10,8 @@ const files = [
   "mandatemarshal_routine_implementer.toml",
   "mandatemarshal_complex_implementer.toml",
   "mandatemarshal_fresh_reviewer.toml",
+  "mandatemarshal_fresh_reviewer_astra.toml",
+  "mandatemarshal_fresh_reviewer_sol_compat.toml",
 ];
 
 await mkdir(target, { recursive: true });

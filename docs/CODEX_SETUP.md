@@ -8,10 +8,12 @@ MandateMarshal uses semantic roles in core and maps them to Codex-specific agent
 | --- | --- | --- | --- |
 | routine implementer | `gpt-5.6-luna` | `max` | `workspace-write` |
 | complex implementer | `gpt-5.6-terra` | `high` | `workspace-write` |
-| fresh reviewer | `gpt-5.6-sol` | `high` | `read-only` |
+| fresh reviewer | selected frontier reviewer profile | `high` | `read-only` |
 | Parent | inherit | inherit | host/session policy |
 
-These mappings are exact requests. If the active Codex runtime cannot provide an exact configured model/effort combination, MandateMarshal must report the capability/configuration failure rather than silently substituting another role.
+v0.2.7 provides `astra-high` (`gpt-6-astra` / High) and `sol-high-compat` (`gpt-5.6-sol` / High). During Astra's staged rollout the packaged default remains `sol-high-compat` until exact Astra availability is observed in the active Codex host. The eventual rollout changes one adapter-level selector; Luna/Terra implementation mappings remain unchanged and Sol becomes an explicit compatibility choice rather than fallback behavior.
+
+These mappings are exact requests. If the active Codex runtime cannot provide an exact configured model/effort combination, MandateMarshal must report the capability/configuration failure rather than silently substituting another role or reviewer generation.
 
 ## Release pinning and updates
 
@@ -24,7 +26,7 @@ mandatemarshal pin latest
 to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
 
 ```bash
-mandatemarshal pin 0.2.6
+mandatemarshal pin 0.2.7
 ```
 
 for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift.
@@ -123,7 +125,7 @@ Later coding requests in the same project may continue without repeating the bra
 
 The registry defaults to `~/.mandatemarshal/projects/`, so activation does not dirty the target repository. v0.1 identifies a project by canonical path; moving/renaming it may require explicit activation again.
 
-## Skill-run receipts — v0.2.6
+## Skill-run receipts — v0.2.7
 
 When the packaged CLI is available, Skill-driven coding objectives use a lightweight canonical run envelope. Prefer the lifecycle bridge for normal operation:
 
@@ -136,9 +138,11 @@ mandatemarshal run advance <run-id> run-completed
 mandatemarshal run show <run-id>
 ```
 
-`ensure` reuses the only active receipt for the canonical project, creates one when none exists, serializes concurrent creation with a short-lived project lock, and fails on ambiguous multiple active receipts. Candidate-bound `run advance` transitions mechanically re-observe Git state, diff, and worktree bytes, persisting a changed candidate before evaluating the requested transition. Unchanged observations do not add redundant candidate trace events. Low-level `capture`/`record` remain available for compatibility and diagnostics, and generic `run record` still cannot publish `candidate-observed`.
+`ensure` reuses the only active receipt for the canonical project, creates one when none exists, serializes concurrent creation with a short-lived project lock, and fails on ambiguous multiple active receipts. If the active receipt was created by an older stable patch on the same major/minor line, `ensure` upgrades it in place, records `runtime-upgraded`, preserves the run ID/original version, and clears candidate/Parent/verdict/Fresh-PASS bindings. Automatic downgrade and cross-line migration are rejected.
 
-The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.6. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
+Candidate-bound `run advance` transitions mechanically re-observe the candidate. Git repositories bind HEAD, porcelain state, the HEAD-relative binary diff, and non-ignored untracked bytes without recursively rereading unchanged tracked files or ignored artifact trees. A changed candidate is persisted before evaluating the requested transition; unchanged observations do not add redundant candidate trace events. Low-level `capture`/`record` remain available for compatibility and diagnostics, and generic `run record` still cannot publish `candidate-observed`.
+
+The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.7. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
 
 A `skill-contract` receipt is traceability evidence, not a claim that the full durable external-operation reconciliation layer was active.
 

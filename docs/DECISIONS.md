@@ -199,7 +199,7 @@ Receipt updates are serialized with short-lived filesystem locks so concurrent h
 
 ### D-035 — 0.2.x is the compatibility-preserving stabilization line
 
-**Decision:** Until the next architecture milestone, 0.2.x releases may add backward-compatible diagnostics, run traceability, packaging fixes, and operational hardening discovered by TengoZero dogfooding. v0.3.0 remains reserved for the larger worktree-isolation / semantic-checkpoint / candidate-lineage milestone rather than being consumed by patch-level stabilization.
+**Decision:** Until the next architecture milestone, 0.2.x releases may add backward-compatible diagnostics, run traceability, packaging fixes, and operational hardening discovered through downstream dogfooding. v0.3.0 remains reserved for the larger worktree-isolation / semantic-checkpoint / candidate-lineage milestone rather than being consumed by patch-level stabilization.
 
 ### D-036 — Implementers do not own semantic Git commits by default
 
@@ -218,3 +218,21 @@ Persistent receipts remain deliberately small and contain structured authority/r
 **Decision:** Semantic roles remain independent from concrete model generations. When a newer appropriate frontier model is officially available in the relevant Codex host and its exact model/effort interface has been verified, the default adapter mapping may roll forward rather than permanently preserving an older frontier model as the main lane. Astra is the planned successor to Sol for the Fresh Reviewer default once those availability/interface conditions are met. Future stronger appropriate models may replace Astra by the same rule.
 
 Older mappings may remain only as explicit compatibility/configuration profiles when useful. Unavailability of the configured default never authorizes silent fallback to an older model, and speculative unreleased model identifiers must not be baked into the core contract.
+
+## v0.2.7 large-repository and rollout stabilization — 2026-09-04
+
+### D-039 — Git candidate identity is delta-bounded, not whole-worktree recursive
+
+**Decision:** For Git repositories, candidate identity is bound to Git HEAD, porcelain state, the HEAD-relative binary diff, and the bytes/targets of non-ignored untracked entries reported by Git. Unchanged tracked files and ignored artifact trees are not recursively read. This preserves sensitivity to candidate-relevant tracked and untracked mutations while making candidate-bound lifecycle transitions practical in repositories that retain large immutable/ignored artifact trees. Non-Git repositories keep the recursive content-digest fallback because Git delta semantics are unavailable.
+
+### D-040 — Compatible active receipts upgrade in place but lose old authority bindings
+
+**Decision:** `run ensure` may advance an active receipt only to a newer stable patch on the same major/minor line. The run ID is preserved, `startedWithVersion` retains the original runtime when an upgrade occurs, and a persistent `runtime-upgraded` event records the exact from/to versions. Candidate identity, Git HEAD, Parent verification, reviewer verdict, and Fresh-PASS bindings are cleared at the upgrade boundary so an older runtime or candidate algorithm cannot lend authority to the new runtime. Automatic downgrade, prerelease migration, and cross-minor/major migration fail closed.
+
+### D-041 — Astra is a concrete reviewer profile before it becomes the default
+
+**Decision:** v0.2.7 ships `astra-high` (`gpt-6-astra` / High) and `sol-high-compat` (`gpt-5.6-sol` / High) as explicit Codex Fresh Reviewer profiles. During Astra's staged rollout, the default selector remains on `sol-high-compat` until exact Astra availability is observed in the active Codex host. The eventual rollout changes only the adapter-boundary default selector; Luna/Max and Terra/High implementation mappings remain unchanged. Once Astra is selected, failure to launch Astra is an exact-capability failure, never permission to fall back silently to Sol.
+
+### D-042 — Dogfooding findings may support architecture claims only at their observed strength
+
+**Decision:** Public documentation may cite an anonymized downstream dogfood case where a fresh read-only reviewer found a production-only namespace-boundary defect after focused Parent verification had passed. This is legitimate evidence that independent final-candidate review can add value. It must not be generalized into a guarantee that Fresh Reviewer catches every bug or that one dogfood result establishes universal superiority.

@@ -152,13 +152,16 @@ The GitHub repository/release account and the local same-user Codex/MandateMarsh
 
 ### Skill-run receipts and temporary diagnostic traces
 
-v0.2.5 separates persistent authority/recovery metadata from temporary developer diagnostics.
+v0.2.5 separates persistent authority/recovery metadata from temporary developer diagnostics; v0.2.7 hardens large-repository candidate observation and active-receipt version transitions.
 
 Mitigations:
 
 - receipt/trace filenames accept only safe run IDs and remain under configured roots;
 - `run ensure` and receipt updates use short-lived exclusive filesystem locks to prevent duplicate active creation and lost updates; lock release is token-bound so a stale owner cannot delete a replacement lock;
-- generic `run record` cannot publish `candidate-observed`; `run capture` computes candidate identity from repository state, diff, and worktree bytes;
+- generic `run record` cannot publish `candidate-observed`; `run capture` computes candidate identity mechanically;
+- Git candidate observation binds HEAD/status, the HEAD-relative binary diff, and only Git-reported non-ignored untracked bytes/links, so ignored artifact trees cannot force whole-worktree hashing while tracked and untracked candidate mutations remain detectable;
+- non-ignored untracked paths are resolved beneath the repository root and path escape fails closed;
+- a same-line active receipt patch upgrade is recorded as `runtime-upgraded` and clears candidate, Parent, verdict, and Fresh-PASS bindings; automatic downgrade or cross-line migration fails closed;
 - public receipt creation is fixed to `skill-contract`; callers cannot claim `durable-runtime` by passing a mode label without real durable-engine integration;
 - receipt validation rejects inconsistent Parent-verification, Fresh-PASS, and completed-state bindings;
 - receipt/trace directories request `0700` and files request `0600` where supported;
@@ -167,7 +170,7 @@ Mitigations:
 - trace failure or expiry never authorizes reconstruction of a PASS or an external-operation outcome;
 - stale receipt-lock cleanup applies only to local metadata publication, never to provider-side operation retry authority.
 
-These receipts remain same-user trust surfaces. v0.2.5 does not claim protection against a process that already has arbitrary write access to the user's account.
+These receipts remain same-user trust surfaces. MandateMarshal does not claim protection against a process that already has arbitrary write access to the user's account.
 
 ## Secrets and evidence
 

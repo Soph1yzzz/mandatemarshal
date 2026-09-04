@@ -14,7 +14,9 @@ import type {
 } from "../../core/types";
 import {
   DEFAULT_CODEX_ROLE_MAPPING,
+  freshReviewerRoleForProfile,
   implementationRoleForLane,
+  type CodexFreshReviewerProfileId,
   type CodexNativeRoleConfig,
   type CodexRoleMapping,
 } from "./role-mapping";
@@ -54,6 +56,7 @@ export interface CodexDriver {
 }
 
 export interface CodexAdapterConfig {
+  freshReviewerProfile?: CodexFreshReviewerProfileId;
   roles?: Partial<{
     routineImplementer: CodexNativeRoleConfig;
     complexImplementer: CodexNativeRoleConfig;
@@ -62,11 +65,19 @@ export interface CodexAdapterConfig {
 }
 
 function mappingFromConfig(config: CodexAdapterConfig): CodexRoleMapping {
+  if (config.freshReviewerProfile && config.roles?.freshReviewer) {
+    throw new CodexCapabilityError(
+      "AMBIGUOUS_REVIEWER_MAPPING",
+      "Configure either freshReviewerProfile or roles.freshReviewer, not both",
+    );
+  }
   return {
     ...DEFAULT_CODEX_ROLE_MAPPING,
     routineImplementer: config.roles?.routineImplementer ?? DEFAULT_CODEX_ROLE_MAPPING.routineImplementer,
     complexImplementer: config.roles?.complexImplementer ?? DEFAULT_CODEX_ROLE_MAPPING.complexImplementer,
-    freshReviewer: config.roles?.freshReviewer ?? DEFAULT_CODEX_ROLE_MAPPING.freshReviewer,
+    freshReviewer:
+      config.roles?.freshReviewer ??
+      (config.freshReviewerProfile ? freshReviewerRoleForProfile(config.freshReviewerProfile) : DEFAULT_CODEX_ROLE_MAPPING.freshReviewer),
   };
 }
 

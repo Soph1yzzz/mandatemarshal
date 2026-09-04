@@ -4,6 +4,26 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-09-04
+
+### Added
+
+- Added explicit Codex Fresh Reviewer profiles: `astra-high` (`gpt-6-astra` / High) and `sol-high-compat` (`gpt-5.6-sol` / High), keeping model generations at the adapter boundary so the default reviewer can roll forward without changing core roles.
+- Added persistent `runtime-upgraded` receipt evidence for compatible active-run patch upgrades.
+- Added public downstream-dogfooding evidence where an independent read-only Fresh Reviewer blocked a production-only namespace-boundary defect after focused Parent verification had passed.
+
+### Changed
+
+- Git candidate observation now hashes Git HEAD/status, the HEAD-relative binary diff, and only non-ignored untracked bytes instead of recursively hashing the entire worktree. Ignored/frozen artifact trees no longer make every lifecycle transition reread large research outputs.
+- `run ensure` may upgrade an active receipt in place across a newer patch on the same minor line, preserving the run ID and original version while invalidating candidate, Parent-verification, verdict, and Fresh-PASS bindings.
+- Luna/Max and Terra/High remain the routine/complex implementation defaults. During Astra's staged rollout, Fresh Reviewer remains on the explicit Sol compatibility profile until exact Astra availability is observed in the active Codex host; requesting Astra never silently falls back to Sol.
+
+### Fixed
+
+- Fixed the large-artifact dogfood failure mode where mechanically safe candidate observation was too expensive to use at every receipt transition.
+- Fixed version-skew continuation semantics where an older active receipt could be reused indefinitely after a runtime upgrade without recording the new runtime or forcing fresh candidate/review bindings.
+- Automatic receipt downgrade and cross-minor/major migration now fail closed.
+
 ## [0.2.6] - 2026-09-04
 
 ### Added
@@ -18,7 +38,7 @@ All notable changes to MandateMarshal are documented in this file.
 
 ### Fixed
 
-- Closed the TenhoZero dogfood gap where real work could reach Parent verification and Fresh Reviewer launch while the canonical receipt remained stuck at `implementer-started` because the Skill lifecycle depended on separate manual `capture` / `record` steps.
+- Closed a downstream dogfood gap where real work could reach Parent verification and Fresh Reviewer launch while the canonical receipt remained stuck at `implementer-started` because the Skill lifecycle depended on separate manual `capture` / `record` steps.
 - A changed candidate is persisted before a requested high-level transition is evaluated, so stale Parent/Fresh-PASS bindings fail closed even when that transition is rejected.
 
 ## [0.2.5] - 2026-09-03

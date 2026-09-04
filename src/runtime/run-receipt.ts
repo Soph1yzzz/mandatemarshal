@@ -23,6 +23,7 @@ export type RunReceiptLifecycleTransition =
   | "run-aborted";
 export type RunReceiptEventType =
   | "run-started"
+  | "runtime-upgraded"
   | "implementer-started"
   | "candidate-observed"
   | "parent-verified"
@@ -40,6 +41,7 @@ export interface RunReceipt {
   projectPath: string;
   projectName: string;
   mandatemarshalVersion: string;
+  startedWithVersion?: string;
   startedAt: string;
   updatedAt: string;
   status: RunReceiptStatus;
@@ -65,6 +67,8 @@ export interface RunTraceEvent {
   gitHead?: string;
   threadId?: string;
   verdict?: RunReceiptVerdict;
+  fromVersion?: string;
+  toVersion?: string;
 }
 
 export interface RunReceiptEventInput {
@@ -72,6 +76,12 @@ export interface RunReceiptEventInput {
   gitHead?: string;
   threadId?: string;
   verdict?: RunReceiptVerdict;
+}
+
+export interface EnsureRunReceiptResult {
+  created: boolean;
+  upgraded: boolean;
+  receipt: RunReceipt;
 }
 
 export interface RunReceiptOptions {
@@ -119,7 +129,7 @@ export async function ensureRunReceipt(
   projectPath: string,
   mode: RunReceiptMode = "skill-contract",
   options: RunReceiptOptions = {},
-): Promise<{ created: boolean; receipt: RunReceipt }> {
+): Promise<EnsureRunReceiptResult> {
   const canonical = await requireExistingProjectDirectory(projectPath);
   const projectId = await projectActivationId(canonical);
   return withReceiptLock(`project-${projectId}`, options, async () => {
@@ -128,9 +138,11 @@ export async function ensureRunReceipt(
     const existing = active[0];
     if (existing) {
       if (existing.mode !== mode) throw new Error(`RUN_RECEIPT_MODE_MISMATCH:${existing.runId}:${existing.mode}:${mode}`);
-      return { created: false, receipt: existing };
+      const targetVersion = options.mandatemarshalVersion ?? (await readLocalPackageVersion());
+      if (existing.mandatemarshalVersion === targetVersion) return { created: false, upgraded: false, receipt: existing };
+      return { created: false, upgraded: true, receipt: await upgradeRunReceiptVersion(existing.runId, targetVersion, options) };
     }
-    return { created: true, receipt: await createRunReceipt(canonical, projectId, mode, options) };
+    return { created: true, upgraded: false, receipt: await createRunReceipt(canonical, projectId, mode, options) };
   });
 }
 
@@ -245,6 +257,28 @@ async function refreshRunCandidate(runId: string, options: RunReceiptOptions): P
     options,
   );
   return observation.candidateId;
+}
+
+async function upgradeRunReceiptVersion(runId: string, targetVersion: string, options: RunReceiptOptions): Promise<RunReceipt> {
+  assertSafeRunId(runId);
+  return withReceiptLock(`run-${runId}`, options, async () => {
+    const receipt = await readRunReceipt(runId, options);
+    if (receipt.mandatemarshalVersion === targetVersion) return receipt;
+    assertCompatibleReceiptUpgrade(receipt.mandatemarshalVersion, targetVersion, runId);
+    const event: RunTraceEvent = {
+      schemaVersion: 1,
+      runId,
+      sequence: receipt.eventCount + 1,
+      timestamp: currentDate(options).toISOString(),
+      type: "runtime-upgraded",
+      fromVersion: receipt.mandatemarshalVersion,
+      toVersion: targetVersion,
+    };
+    const updated = applyEvent(receipt, event);
+    await persistReceipt(updated, options);
+    await bestEffortAppendTrace(event, options);
+    return updated;
+  });
 }
 
 export async function recordRunReceiptEvent(
@@ -399,6 +433,21 @@ function applyEvent(receipt: RunReceipt, event: RunTraceEvent): RunReceipt {
   };
 
   switch (event.type) {
+    case "runtime-upgraded": {
+      if (!event.fromVersion || !event.toVersion) throw new Error("RUN_RECEIPT_VERSION_EVENT_INVALID");
+      if (receipt.mandatemarshalVersion !== event.fromVersion) {
+        throw new Error(`RUN_RECEIPT_VERSION_EVENT_MISMATCH:${receipt.runId}:${receipt.mandatemarshalVersion}:${event.fromVersion}`);
+      }
+      next.startedWithVersion ??= receipt.mandatemarshalVersion;
+      next.mandatemarshalVersion = event.toVersion;
+      delete next.candidateId;
+      delete next.gitHead;
+      delete next.parentVerifiedCandidateId;
+      delete next.latestVerdict;
+      delete next.freshPassCandidateId;
+      next.status = "active";
+      return next;
+    }
     case "implementer-started": {
       if (!event.threadId) throw new Error("RUN_RECEIPT_THREAD_REQUIRED:implementer-started");
       next.latestImplementerThreadId = event.threadId;
@@ -636,6 +685,7 @@ function validateReceipt(value: unknown, expectedRunId: string): RunReceipt {
   if (value.mode !== "skill-contract" && value.mode !== "durable-runtime") throw new Error(`RUN_RECEIPT_INVALID_MODE:${expectedRunId}`);
   if (!isString(value.projectId) || !isString(value.projectPath) || !isString(value.projectName)) throw new Error(`RUN_RECEIPT_INVALID_PROJECT:${expectedRunId}`);
   if (!isString(value.mandatemarshalVersion) || !isString(value.startedAt) || !isString(value.updatedAt)) throw new Error(`RUN_RECEIPT_INVALID_METADATA:${expectedRunId}`);
+  if (value.startedWithVersion !== undefined && !isString(value.startedWithVersion)) throw new Error(`RUN_RECEIPT_INVALID_METADATA:${expectedRunId}:startedWithVersion`);
   if (!isRunStatus(value.status) || !isPositiveInteger(value.eventCount)) throw new Error(`RUN_RECEIPT_INVALID_STATE:${expectedRunId}`);
   if (value.traceRetentionDays !== RUN_TRACE_RETENTION_DAYS || !isRunEventType(value.lastEventType)) throw new Error(`RUN_RECEIPT_INVALID_TRACE_POLICY:${expectedRunId}`);
   for (const key of ["candidateId", "gitHead", "parentVerifiedCandidateId", "latestImplementerThreadId", "latestReviewerThreadId", "freshPassCandidateId"] as const) {
@@ -667,6 +717,8 @@ function validateTraceEvent(value: unknown, expectedRunId: string): RunTraceEven
   if (value.gitHead !== undefined && !isString(value.gitHead)) throw new Error(`RUN_TRACE_INVALID_GIT_HEAD:${expectedRunId}`);
   if (value.threadId !== undefined && !isString(value.threadId)) throw new Error(`RUN_TRACE_INVALID_THREAD:${expectedRunId}`);
   if (value.verdict !== undefined && !isVerdict(value.verdict)) throw new Error(`RUN_TRACE_INVALID_VERDICT:${expectedRunId}`);
+  if (value.fromVersion !== undefined && !isString(value.fromVersion)) throw new Error(`RUN_TRACE_INVALID_FROM_VERSION:${expectedRunId}`);
+  if (value.toVersion !== undefined && !isString(value.toVersion)) throw new Error(`RUN_TRACE_INVALID_TO_VERSION:${expectedRunId}`);
   return value as unknown as RunTraceEvent;
 }
 
@@ -675,7 +727,7 @@ function isRunStatus(value: unknown): value is RunReceiptStatus {
 }
 
 function isRunEventType(value: unknown): value is RunReceiptEventType {
-  return value === "run-started" || value === "implementer-started" || value === "candidate-observed" || value === "parent-verified" || value === "reviewer-started" || value === "review-verdict" || value === "correction-started" || value === "run-completed" || value === "run-aborted";
+  return value === "run-started" || value === "runtime-upgraded" || value === "implementer-started" || value === "candidate-observed" || value === "parent-verified" || value === "reviewer-started" || value === "review-verdict" || value === "correction-started" || value === "run-completed" || value === "run-aborted";
 }
 
 function isVerdict(value: unknown): value is RunReceiptVerdict {
@@ -704,6 +756,24 @@ function isTraceUnavailable(error: unknown): boolean {
 
 function isErrorCode(error: unknown, code: string): boolean {
   return isRecord(error) && error.code === code;
+}
+
+function assertCompatibleReceiptUpgrade(fromVersion: string, toVersion: string, runId: string): void {
+  const from = parseStableVersion(fromVersion);
+  const to = parseStableVersion(toVersion);
+  if (!from || !to || from.major !== to.major || from.minor !== to.minor) {
+    throw new Error(`RUN_RECEIPT_VERSION_UPGRADE_INCOMPATIBLE:${runId}:${fromVersion}:${toVersion}`);
+  }
+  if (to.patch < from.patch) {
+    throw new Error(`RUN_RECEIPT_VERSION_DOWNGRADE_UNSUPPORTED:${runId}:${fromVersion}:${toVersion}`);
+  }
+  if (to.patch === from.patch) throw new Error(`RUN_RECEIPT_VERSION_UPGRADE_INVALID:${runId}:${fromVersion}:${toVersion}`);
+}
+
+function parseStableVersion(version: string): { major: number; minor: number; patch: number } | undefined {
+  const match = /^(\d+)\.(\d+)\.(\d+)$/u.exec(version);
+  if (!match) return undefined;
+  return { major: Number(match[1]), minor: Number(match[2]), patch: Number(match[3]) };
 }
 
 async function readLocalPackageVersion(): Promise<string> {

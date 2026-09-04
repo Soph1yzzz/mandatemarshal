@@ -61,7 +61,7 @@ mandatemarshal activation enable /path/to/your-project
 Use an exact release when you want reproducibility:
 
 ```bash
-mandatemarshal pin 0.2.6
+mandatemarshal pin 0.2.7
 mandatemarshal pin status
 mandatemarshal version
 ```
@@ -85,7 +85,7 @@ flowchart LR
     P --> C["Complex Implementer<br/>Terra / High"]
     R --> V["Parent Verification"]
     C --> V
-    V --> F["Fresh Reviewer<br/>Sol / High · read-only"]
+    V --> F["Fresh Reviewer<br/>frontier profile · read-only"]
     F -->|PASS| A["Accept exact candidate"]
     F -->|FIX| P
     F -->|ESCALATE| O
@@ -116,6 +116,12 @@ Parent Orchestrator ----> Implementer
 ```
 
 That hierarchy is the concrete expression of the rule above: implementation authority stays bounded by Owner authority.
+
+### Dogfooding evidence: independent review caught a production-only boundary bug
+
+The Fresh Reviewer split has paid for itself in real project use. In downstream dogfooding, the Parent's focused verification passed, but a new read-only Fresh Reviewer found a production-only namespace-boundary defect that the focused checks had missed. The reviewer returned `FIX`; the bounded correction was made, the candidate was independently reviewed again, and only the newly reviewed candidate proceeded to downstream smoke. This is evidence that independent final-candidate review can add value; it is not a claim that a Fresh Reviewer catches every bug.
+
+That is evidence for the architecture, not a claim that an independent reviewer catches every defect. The useful property is narrower: implementation and acceptance do not share exactly the same context and incentives, and a read-only reviewer can block a concrete final-candidate defect without acquiring authority to redesign the project.
 
 ## Role model
 
@@ -157,10 +163,12 @@ These are adapter defaults, not core assumptions:
 | --- | --- | --- |
 | `routine-implementer` | `gpt-5.6-luna` | `max` |
 | `complex-implementer` | `gpt-5.6-terra` | `high` |
-| `fresh-reviewer` | `gpt-5.6-sol` | `high` |
+| `fresh-reviewer` | selected frontier reviewer profile | `high` |
 | Parent | inherit | inherit |
 
-A settled bounded packet routes routine-first. Material complexity can be explicitly reclassified to complex with a `LaneReclassified` event. Failure to launch Luna/Max is **not** a reason to silently use Terra/High.
+v0.2.7 ships two explicit Fresh Reviewer profiles at the Codex adapter boundary: `astra-high` (`gpt-6-astra` / High) and `sol-high-compat` (`gpt-5.6-sol` / High). During Astra's staged rollout, the packaged default remains `sol-high-compat` until the active Codex host exposes the exact Astra model. The rollout switch is one adapter-level selector; once switched, Sol remains an explicit compatibility profile rather than a silent fallback. The provider-neutral core never depends on either model name.
+
+A settled bounded packet routes routine-first. Material complexity can be explicitly reclassified to complex with a `LaneReclassified` event. Failure to launch Luna/Max is **not** a reason to silently use Terra/High, and requesting Astra never authorizes silently substituting Sol.
 
 Current Codex agent configuration supports project-scoped custom agents, per-agent model/reasoning configuration, and read-only sandbox requests. MandateMarshal records requested and observed capability separately rather than claiming requested isolation was enforced.
 
@@ -188,9 +196,9 @@ By default persistent run evidence is written under:
 
 so the target repository is not dirtied merely by being orchestrated.
 
-## Skill run receipts and lifecycle bridge — v0.2.6
+## Skill run receipts and lifecycle bridge — v0.2.7
 
-Normal Codex Skill orchestration carries one canonical MandateMarshal run identity across the full implementation/FIX/PASS loop. v0.2.6 adds `run advance` so the Skill can publish lifecycle transitions without manually carrying candidate IDs between `capture` and `record`:
+Normal Codex Skill orchestration carries one canonical MandateMarshal run identity across the full implementation/FIX/PASS loop. v0.2.6 added `run advance`; v0.2.7 makes candidate observation practical for repositories with large ignored artifact trees and defines the active-run version-upgrade boundary:
 
 ```bash
 mandatemarshal run ensure /path/to/project
@@ -201,9 +209,11 @@ mandatemarshal run advance <run-id> run-completed
 mandatemarshal run show <run-id>
 ```
 
-The persistent receipt under `~/.mandatemarshal/receipts/` stores only small authority/recovery facts such as project identity, current candidate, Git HEAD, Parent verification, thread references, and Fresh Reviewer binding. Candidate-bound `run advance` transitions mechanically re-observe Git state, diff, and worktree bytes first. A changed candidate is persisted so stale bindings fail closed; an unchanged candidate does not create a redundant `candidate-observed` trace event. Low-level `run capture` and `run record` remain available for compatibility and diagnostics.
+The persistent receipt under `~/.mandatemarshal/receipts/` stores only small authority/recovery facts such as project identity, current candidate, Git HEAD, Parent verification, thread references, and Fresh Reviewer binding. For Git repositories, candidate identity is now derived from Git HEAD, porcelain state, the HEAD-relative binary diff, and the bytes of non-ignored untracked files. MandateMarshal does **not** recursively hash unchanged tracked files or ignored artifact trees. This preserves candidate sensitivity to tracked and untracked work while avoiding the downstream dogfood failure mode where large frozen/ignored artifact trees were re-read on every candidate-bound transition. Non-Git repositories retain the recursive content digest fallback.
 
-Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL remains intentionally fixed at 30 days in v0.2.6; configurability may be considered later if real-world use justifies it.
+`run ensure` also defines an explicit version boundary. A live receipt may move in place across a newer patch release on the same minor line (for example `0.2.6 -> 0.2.7`) while preserving its run ID and original version. The upgrade is recorded as `runtime-upgraded`, and candidate, Parent-verification, verdict, and Fresh-PASS bindings are cleared so a changed candidate algorithm or runtime cannot inherit stale authority. Downgrades and cross-line automatic migration fail closed.
+
+Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL remains intentionally fixed at 30 days in v0.2.7; configurability may be considered later if real-world use justifies it.
 
 A `skill-contract` receipt improves traceability but is not the same claim as durable external-operation reconciliation. See [Run Receipts](docs/RUN_RECEIPTS.md).
 
@@ -275,7 +285,7 @@ mandatemarshal pin latest
 Or pin an exact release:
 
 ```bash
-mandatemarshal pin 0.2.6
+mandatemarshal pin 0.2.7
 mandatemarshal pin status
 mandatemarshal version
 ```
@@ -300,7 +310,9 @@ The generated profiles request:
 
 - Luna/Max + `workspace-write` for routine implementation;
 - Terra/High + `workspace-write` for complex implementation;
-- Sol/High + `read-only` for Fresh Reviewer.
+- the current default Sol/High + `read-only` Fresh Reviewer;
+- an explicit Astra/High + `read-only` Fresh Reviewer profile ready for rollout;
+- an explicit Sol/High compatibility reviewer profile for post-rollout use.
 
 See `docs/CODEX_SETUP.md`.
 
