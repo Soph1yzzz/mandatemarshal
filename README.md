@@ -1,3 +1,7 @@
+<p align="center">
+  <a href="README.ja.md"><strong>日本語</strong></a> · <strong>English</strong>
+</p>
+
 <div align="center">
 
 # MandateMarshal
