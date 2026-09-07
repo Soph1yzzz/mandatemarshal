@@ -34,6 +34,7 @@ Build a portable, authority-aware coding-agent orchestration system where agents
 24. Recovery-critical receipt state is persistent under `~/.mandatemarshal/`; detailed developer trace is temporary, uses the OS temp directory, and has a fixed 30-day TTL in v0.2.5.
 25. `plugins/mandatemarshal/skills/mandatemarshal/` is the single committed runtime Skill source. `skills/orchestration/` is migration-pointer material only and must not regain Skill frontmatter or a duplicate runtime copy.
 26. Implementers do not create Git commits, tags, or pushes unless the implementation packet explicitly delegates that exact operation; Parent owns semantic commit/checkpoint decisions by default.
+27. Current Codex authority mapping uses GPT-6 Astra for the user-facing Parent and Fresh Reviewer with the exact Owner-selected authority effort; Fresh Reviewer mirrors that effort in fresh read-only context. Routine/complex implementers remain Luna/Max and Terra/High. Sol is explicit compatibility only, never silent fallback.
 
 ## Approved R2 implementation clarifications
 

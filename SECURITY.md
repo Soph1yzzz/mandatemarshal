@@ -27,7 +27,9 @@ An unavailable role/model/effort must not be silently replaced.
 Mitigations:
 
 - exact model/effort capability checks before Codex delegation;
-- adapter has no fallback path;
+- Astra authority effort is runtime-whitelisted before it can enter the Codex launch plan;
+- Parent/Fresh Reviewer authority effort is bound as one exact selection; ambiguous reviewer overrides fail closed;
+- adapter has no fallback path: unknown effort labels are rejected, and Astra is never silently substituted with Sol or another generation;
 - routine complexity reclassification is a distinct, explicit Parent transition.
 
 ### Reviewer mutation
@@ -142,13 +144,14 @@ Mitigations:
 - Codex marketplace configuration is pinned to the exact Git tag;
 - Codex's observed installed plugin version is checked before the local pin record is committed;
 - the exact versioned cache path `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` is computed deterministically and its plugin manifest version, Skill version, and LF-normalized Skill SHA-256 are verified against the published release;
+- for v0.2.8+, every release-critical Astra authority reviewer profile plus explicit Sol compatibility profile is fetched from the immutable release tag and LF-normalized-hash matched to the exact versioned cache before pin success;
 - no alternative cache directory or legacy global Skill is searched as a fallback when the canonical cache is missing or mismatched;
 - a pre-existing global `~/.codex/skills/mandatemarshal/SKILL.md` is removed only after its LF-normalized content hash is proven identical to the official Skill from its own published release; customized/unverifiable content blocks pinning before Codex installation state is changed, and neighboring files are not deleted;
 - package, root plugin, marketplace plugin, the single canonical native-plugin Skill, and bundled agent copies are regression-tested for version/content drift;
 - pin state is stored outside target repositories under `~/.mandatemarshal/pin.json` and records marketplace/runtime checkout separately from the canonical versioned plugin cache;
 - normal CLI commands delegate to the pinned marketplace checkout while runtime Skill authority remains the verified versioned plugin cache.
 
-The GitHub repository/release account and the local same-user Codex/MandateMarshal homes are trusted distribution surfaces. v0.2.5 does not add independent release-signature verification beyond Git tag/release, metadata consistency, and cache Skill hash checks.
+The GitHub repository/release account and the local same-user Codex/MandateMarshal homes are trusted distribution surfaces. MandateMarshal does not add independent release-signature verification beyond Git tag/release, metadata consistency, and release/cache content-hash checks.
 
 ### Skill-run receipts and temporary diagnostic traces
 
@@ -178,7 +181,7 @@ Do not store complete environments, credentials, API keys, or unbounded stdout/s
 
 The current evidence model supports excerpts/trust metadata. Integrators should redact secret-bearing output before persistence and prefer external evidence storage. Persisted run directories are create-once by run ID; artifact files use exclusive creation and request `0600` file / `0700` directory modes where the platform supports POSIX-style permissions.
 
-`CodexCliDriverOptions.command` and the `MANDATEMARSHAL_CODEX_BIN` pinning override are trusted operator configuration only. Do not populate either from repository content, model output, or other untrusted input. MandateMarshal intentionally exposes no arbitrary `extraArgs` injection surface for Codex CLI flags. Pinning resolves Codex only from the explicit trusted override, the active PATH, and known same-user Codex/npm install locations.
+`CodexCliDriverOptions.command` and the `MANDATEMARSHAL_CODEX_BIN` pinning override are trusted operator configuration only. Do not populate either from repository content, model output, or other untrusted input. MandateMarshal intentionally exposes no arbitrary `extraArgs` injection surface for Codex CLI flags. `buildCodexExecArgs` produces an argv array rather than a shell command, and authority effort is constrained to the supported exact-value allowlist before use. Pinning resolves Codex only from the explicit trusted override, the active PATH, and known same-user Codex/npm install locations.
 
 ## Destructive actions
 

@@ -66,7 +66,7 @@ describe("Codex adapter conformance", () => {
     expect(d.implementationRequests).toEqual([{ model: "gpt-5.6-terra", effort: "high" }]);
   });
 
-  test("fresh reviewer requests Sol/High in fresh read-only mode", async () => {
+  test("fresh reviewer defaults to Astra/Medium in fresh read-only mode", async () => {
     const d = driver();
     const adapter = new CodexAdapter(d.base);
     const handle = await adapter.spawnFreshReviewer({
@@ -78,7 +78,59 @@ describe("Codex adapter conformance", () => {
       evidence: evidence(),
     });
     await adapter.readReviewerResult(handle);
+    expect(d.reviewerRequests).toEqual([{ model: "gpt-6-astra", effort: "medium", fresh: true, readOnly: true }]);
+    expect(adapter.parentAuthorityRequirement()).toEqual({ nativeRole: "parent", model: "gpt-6-astra", effort: "medium" });
+  });
+
+  test("user-selected authority effort mirrors from Parent requirement to Astra reviewer", async () => {
+    const d = driver();
+    const adapter = new CodexAdapter(d.base, { authorityEffort: "xhigh" });
+    adapter.assertParentAuthoritySelection({ model: "gpt-6-astra", effort: "xhigh" });
+    await adapter.spawnFreshReviewer({
+      candidateId: "c1",
+      objective: "test",
+      interfaces: [],
+      constraints: [],
+      allowedPaths: ["src/**"],
+      evidence: evidence(),
+    });
+    expect(d.reviewerRequests).toEqual([{ model: "gpt-6-astra", effort: "xhigh", fresh: true, readOnly: true }]);
+  });
+
+  test("Parent authority mismatch fails closed", () => {
+    const d = driver();
+    const adapter = new CodexAdapter(d.base, { authorityEffort: "max" });
+    expect(() => adapter.assertParentAuthoritySelection({ model: "gpt-5.6-sol", effort: "max" })).toThrow(
+      "Parent must run gpt-6-astra/max",
+    );
+  });
+
+  test("Sol reviewer is available only by explicit compatibility profile", async () => {
+    const d = driver();
+    const adapter = new CodexAdapter(d.base, { freshReviewerProfile: "sol-high-compat" });
+    await adapter.spawnFreshReviewer({
+      candidateId: "c1",
+      objective: "test",
+      interfaces: [],
+      constraints: [],
+      allowedPaths: ["src/**"],
+      evidence: evidence(),
+    });
     expect(d.reviewerRequests).toEqual([{ model: "gpt-5.6-sol", effort: "high", fresh: true, readOnly: true }]);
+  });
+
+  test("authority effort cannot be combined with reviewer override", () => {
+    const d = driver();
+    expect(() => new CodexAdapter(d.base, { authorityEffort: "high", freshReviewerProfile: "sol-high-compat" })).toThrow(
+      "authorityEffort already binds the Parent and Fresh Reviewer",
+    );
+  });
+
+  test("unknown reviewer profile fails closed at runtime", () => {
+    const d = driver();
+    expect(() => new CodexAdapter(d.base, { freshReviewerProfile: "astra-turbo" as never })).toThrow(
+      "Unsupported Fresh Reviewer profile: astra-turbo",
+    );
   });
 
   test("unavailable exact effort blocks before delegation; no fallback", async () => {

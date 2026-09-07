@@ -8,12 +8,12 @@ MandateMarshal uses semantic roles in core and maps them to Codex-specific agent
 | --- | --- | --- | --- |
 | routine implementer | `gpt-5.6-luna` | `max` | `workspace-write` |
 | complex implementer | `gpt-5.6-terra` | `high` | `workspace-write` |
-| fresh reviewer | selected frontier reviewer profile | `high` | `read-only` |
-| Parent | inherit | inherit | host/session policy |
+| fresh reviewer | `gpt-6-astra` | Owner-selected authority effort | `read-only` |
+| Parent | `gpt-6-astra` | Owner-selected authority effort | root host/session policy |
 
-v0.2.7 provides `astra-high` (`gpt-6-astra` / High) and `sol-high-compat` (`gpt-5.6-sol` / High). During Astra's staged rollout the packaged default remains `sol-high-compat` until exact Astra availability is observed in the active Codex host. The eventual rollout changes one adapter-level selector; Luna/Terra implementation mappings remain unchanged and Sol becomes an explicit compatibility choice rather than fallback behavior.
+v0.2.8 activates the Frontier Authority Profile. Parent and Fresh Reviewer share one exact Astra authority effort selected by the Owner: `low`, `medium`, `high`, `xhigh`, or `max`. The packaged default is `medium`. The reviewer remains fresh and read-only; only model/effort selection is mirrored. Sol is retained only as the explicit `sol-high-compat` reviewer profile.
 
-These mappings are exact requests. If the active Codex runtime cannot provide an exact configured model/effort combination, MandateMarshal must report the capability/configuration failure rather than silently substituting another role or reviewer generation.
+Parent is the user-facing root Codex session, not a child MandateMarshal recursively launches. Host integrations that can observe the root model/effort must validate it against the authority profile. Where that observation is unavailable, MandateMarshal treats exact Parent selection as an explicit precondition and must not claim it was independently observed. These mappings are exact requests: unavailable Astra/effort combinations fail loudly, and unknown effort labels are rejected rather than normalized; no silent downgrade to another effort, Sol, or another generation is allowed.
 
 ## Release pinning and updates
 
@@ -26,12 +26,12 @@ mandatemarshal pin latest
 to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
 
 ```bash
-mandatemarshal pin 0.2.7
+mandatemarshal pin 0.2.8
 ```
 
-for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift.
+for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift; v0.2.8+ also requires the Astra authority profile set to be present in the exact versioned cache.
 
-`mandatemarshal version` reports the runtime, pin, installed plugin, exact versioned-cache manifest/Skill versions, and any legacy global Skill together. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version.
+`mandatemarshal version` reports the runtime, pin, installed plugin, exact versioned-cache manifest/Skill versions, v0.2.8+ authority-profile readiness, and any legacy global Skill together. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version.
 
 The pin flow:
 
@@ -42,8 +42,9 @@ The pin flow:
 5. installs the `mandatemarshal@mandatemarshal` plugin from that marketplace;
 6. verifies Codex reports the expected installed plugin version;
 7. computes exactly `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` as the canonical runtime plugin cache and verifies its plugin manifest version, Skill version, and LF-normalized Skill SHA-256 against the published release;
-8. removes only the proven legacy global `SKILL.md` file so native plugin discovery is the only runtime Skill authority without deleting unrelated neighboring files;
-9. stores the marketplace/runtime checkout and canonical versioned-cache source separately under `~/.mandatemarshal/pin.json`.
+8. for v0.2.8+, fetches the released authority-reviewer agent files from the same immutable tag and verifies every corresponding cache `agents/*.toml` file by LF-normalized SHA-256;
+9. removes only the proven legacy global `SKILL.md` file so native plugin discovery is the only runtime Skill authority without deleting unrelated neighboring files;
+10. stores the marketplace/runtime checkout and canonical versioned-cache source separately under `~/.mandatemarshal/pin.json`.
 
 Normal MandateMarshal CLI commands still delegate to the CLI source inside the pinned marketplace checkout. Skill discovery is different: only the exact verified versioned plugin cache is authoritative. MandateMarshal does not search alternative cache copies or fall back to the legacy global Skill when the canonical cache is missing or mismatched.
 
@@ -67,7 +68,7 @@ bun run install:codex-agents -- /path/to/target/.codex/agents
 
 The installer refuses to overwrite an existing file. Use `--force` only after manually reviewing the destination and intended replacement.
 
-After adding or changing custom agent profiles, start a new Codex session so future subagent tasks load the updated definitions.
+The v0.2.8 installer includes Astra reviewer profiles for `low`, `medium`, `high`, `xhigh`, and `max`, plus explicit `sol-high-compat`. The regular effort names are `mandatemarshal_fresh_reviewer_astra_<effort>`; the older `mandatemarshal_fresh_reviewer_astra` remains a High compatibility alias. After adding or changing custom agent profiles, start a new Codex session so future subagent tasks load the updated definitions.
 
 ## Real CLI driver
 
@@ -82,10 +83,12 @@ codex exec --ephemeral ... -m <model> -c model_reasoning_effort="<effort>" -s wo
 Fresh Reviewer:
 
 ```text
-codex exec --ephemeral ... -m <model> -c model_reasoning_effort="<effort>" -s read-only
+codex exec --ephemeral ... -m gpt-6-astra -c model_reasoning_effort="<authority-effort>" -s read-only
 ```
 
-The driver does not contain a model fallback table.
+For native subagent hosts that expose per-spawn `model` / `reasoning_effort` overrides, prefer an explicit Astra + authority-effort spawn request. Static custom-agent TOML remains a packaging/fallback surface and is not by itself evidence that a particular host actually resolved the child to those values. Requested and observed route evidence stay separate.
+
+The driver does not contain a model fallback table. `buildCodexExecArgs` is the pure launch-plan constructor used by runtime execution and by no-launch route tests, allowing model/effort/sandbox verification without starting a Codex process.
 
 For a durable operation, MandateMarshal records the operation-to-thread mapping outside the target repository under `~/.mandatemarshal/providers/codex/operations/`. It observes the persisted Codex session JSONL conservatively: a validated completed result may be reused, a still-running process is reported as waiting, and an incomplete/ambiguous session remains reconciliation-required. `codex exec resume` availability is not treated as proof that automatic continuation is side-effect safe.
 
@@ -125,7 +128,7 @@ Later coding requests in the same project may continue without repeating the bra
 
 The registry defaults to `~/.mandatemarshal/projects/`, so activation does not dirty the target repository. v0.1 identifies a project by canonical path; moving/renaming it may require explicit activation again.
 
-## Skill-run receipts — v0.2.7
+## Skill-run receipts — v0.2.8
 
 When the packaged CLI is available, Skill-driven coding objectives use a lightweight canonical run envelope. Prefer the lifecycle bridge for normal operation:
 
@@ -142,7 +145,7 @@ mandatemarshal run show <run-id>
 
 Candidate-bound `run advance` transitions mechanically re-observe the candidate. Git repositories bind HEAD, porcelain state, the HEAD-relative binary diff, and non-ignored untracked bytes without recursively rereading unchanged tracked files or ignored artifact trees. A changed candidate is persisted before evaluating the requested transition; unchanged observations do not add redundant candidate trace events. Low-level `capture`/`record` remain available for compatibility and diagnostics, and generic `run record` still cannot publish `candidate-observed`.
 
-The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.7. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
+The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.8. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
 
 A `skill-contract` receipt is traceability evidence, not a claim that the full durable external-operation reconciliation layer was active.
 

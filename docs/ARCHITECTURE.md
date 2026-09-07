@@ -56,6 +56,14 @@ Host-specific mapping and transport:
 
 Provider capability must be reported truthfully. Requested capability and observed capability are distinct.
 
+### Codex Frontier Authority Profile — v0.2.8
+
+Codex keeps authority and implementation routing separate. The user-facing Parent is a root-session requirement on `gpt-6-astra` with one Owner-selected authority effort; Fresh Reviewer uses `gpt-6-astra` with the exact same effort but a new read-only context. Routine/complex Implementers remain Luna/Max and Terra/High. Sol is available only through explicit compatibility configuration.
+
+The Parent is not recursively spawned by the adapter. `CodexAdapter.parentAuthorityRequirement()` exposes the required root selection, while `assertParentAuthoritySelection()` lets integrations fail closed when root-session model/effort observation is available. The reviewer route is directly enforceable by adapter mapping. `buildCodexExecArgs()` is the pure constructor used by `CodexCliDriver` and no-launch integration tests so exact model/effort/sandbox argv can be verified without executing Codex.
+
+Static plugin/custom-agent operation cannot safely assume a child inherits the Parent's effort, so the package includes explicit Astra reviewer profiles for `low`, `medium`, `high`, `xhigh`, and `max`. An unavailable exact value is a capability failure; unknown labels are rejected rather than normalized, and no supported value is reduced or substituted silently.
+
 ## State machine
 
 Primary happy path:

@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { classifyImplementation, reclassifyBlockedRoutine } from "../../src/orchestrator/routing";
 import {
-  CODEX_FRESH_REVIEWER_PROFILES,
-  DEFAULT_CODEX_FRESH_REVIEWER_PROFILE,
+  CODEX_FRONTIER_AUTHORITY_MODEL,
+  DEFAULT_CODEX_AUTHORITY_EFFORT,
+  authorityReviewerAgentNameForEffort,
   DEFAULT_CODEX_ROLE_MAPPING,
+  codexRoleMappingForAuthorityEffort,
+  freshReviewerProfileForAuthorityEffort,
   freshReviewerRoleForProfile,
   routingEvidenceForLane,
 } from "../../src/adapters/codex/role-mapping";
@@ -39,12 +42,33 @@ import {
     expect(evidence.requestedEffort).toBe("high");
   });
 
-  test("fresh reviewer profiles are Astra-ready without silently changing the rollout default", () => {
-    expect(DEFAULT_CODEX_FRESH_REVIEWER_PROFILE).toBe("sol-high-compat");
-    expect(DEFAULT_CODEX_ROLE_MAPPING.freshReviewer).toEqual(CODEX_FRESH_REVIEWER_PROFILES["sol-high-compat"]);
-    expect(freshReviewerRoleForProfile("astra-high")).toEqual({
+  test("Astra authority effort is shared by Parent and Fresh Reviewer", () => {
+    expect(DEFAULT_CODEX_AUTHORITY_EFFORT).toBe("medium");
+    expect(DEFAULT_CODEX_ROLE_MAPPING.parent).toEqual({
+      nativeRole: "parent",
+      model: CODEX_FRONTIER_AUTHORITY_MODEL,
+      effort: "medium",
+    });
+    expect(DEFAULT_CODEX_ROLE_MAPPING.freshReviewer).toEqual({
       nativeRole: "fresh-reviewer",
-      model: "gpt-6-astra",
+      model: CODEX_FRONTIER_AUTHORITY_MODEL,
+      effort: "medium",
+    });
+    for (const effort of ["low", "medium", "high", "xhigh", "max"] as const) {
+      const mapping = codexRoleMappingForAuthorityEffort(effort);
+      expect(mapping.parent.model).toBe("gpt-6-astra");
+      expect(mapping.parent.effort).toBe(effort);
+      expect(mapping.freshReviewer.model).toBe("gpt-6-astra");
+      expect(mapping.freshReviewer.effort).toBe(effort);
+      expect(freshReviewerRoleForProfile(freshReviewerProfileForAuthorityEffort(effort))).toEqual(mapping.freshReviewer);
+      expect(authorityReviewerAgentNameForEffort(effort)).toBe(`mandatemarshal_fresh_reviewer_astra_${effort}`);
+    }
+  });
+
+  test("Sol remains explicit compatibility only", () => {
+    expect(freshReviewerRoleForProfile("sol-high-compat")).toEqual({
+      nativeRole: "fresh-reviewer",
+      model: "gpt-5.6-sol",
       effort: "high",
     });
   });

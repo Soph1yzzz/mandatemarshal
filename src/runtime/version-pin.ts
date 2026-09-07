@@ -10,6 +10,17 @@ const PUBLISHED_SKILL_PATH = "plugins/mandatemarshal/skills/mandatemarshal/SKILL
 const LEGACY_PUBLISHED_SKILL_PATH = "skills/orchestration/SKILL.md";
 const PIN_STATE_SCHEMA = 2 as const;
 const PIN_EXEC_GUARD = "MANDATEMARSHAL_PINNED_EXEC";
+const AUTHORITY_AGENT_INTRO_VERSION = "0.2.8";
+const AUTHORITY_AGENT_FILES = [
+  "mandatemarshal_fresh_reviewer.toml",
+  "mandatemarshal_fresh_reviewer_astra_low.toml",
+  "mandatemarshal_fresh_reviewer_astra_medium.toml",
+  "mandatemarshal_fresh_reviewer_astra.toml",
+  "mandatemarshal_fresh_reviewer_astra_high.toml",
+  "mandatemarshal_fresh_reviewer_astra_xhigh.toml",
+  "mandatemarshal_fresh_reviewer_astra_max.toml",
+  "mandatemarshal_fresh_reviewer_sol_compat.toml",
+] as const;
 
 export interface MandateMarshalPinRecord {
   schemaVersion: 2;
@@ -20,6 +31,7 @@ export interface MandateMarshalPinRecord {
   marketplaceSource: string;
   runtimeSource: string;
   pluginCacheSource: string;
+  authorityProfilesHash?: string;
   pinnedAt: string;
 }
 
@@ -40,6 +52,7 @@ export interface MandateMarshalPinStatus {
   installedPluginVersion: string | null;
   pluginCacheVersion: string | null;
   pluginCacheSkillVersion: string | null;
+  pluginCacheAuthorityProfilesReady: boolean | null;
   legacySkillVersion: string | null;
 }
 
@@ -50,6 +63,7 @@ export interface MandateMarshalVersionInfo {
   installedPluginVersion: string | null;
   pluginCacheVersion: string | null;
   pluginCacheSkillVersion: string | null;
+  pluginCacheAuthorityProfilesReady: boolean | null;
   legacySkillVersion: string | null;
   aligned: boolean;
 }
@@ -149,7 +163,12 @@ export async function pinMandateMarshal(
 
   const runtimeSource = marketplaceSource;
   const pluginCacheSource = expectedPluginCacheSource(target.version, options.home, options.codexHome);
-  await verifyPluginCache(pluginCacheSource, target.version, published.skillHash);
+  const authorityProfilesHash = await verifyPluginCache(
+    pluginCacheSource,
+    target.version,
+    published.skillHash,
+    published.agentHashes,
+  );
   if (legacySkill.kind === "managed") {
     await unlink(legacySkill.skillPath);
   }
@@ -163,6 +182,7 @@ export async function pinMandateMarshal(
     marketplaceSource,
     runtimeSource,
     pluginCacheSource,
+    ...(authorityProfilesHash === undefined ? {} : { authorityProfilesHash }),
     pinnedAt: (options.now ?? (() => new Date()))().toISOString(),
   };
   await writePinRecord(record, options.home);
@@ -179,6 +199,7 @@ export async function inspectMandateMarshalVersion(options: PinRuntimeOptions = 
     installedPluginVersion: pin.installedPluginVersion,
     pluginCacheVersion: pin.pluginCacheVersion,
     pluginCacheSkillVersion: pin.pluginCacheSkillVersion,
+    pluginCacheAuthorityProfilesReady: pin.pluginCacheAuthorityProfilesReady,
     legacySkillVersion: pin.legacySkillVersion,
     aligned:
       pin.status === "unpinned"
@@ -188,6 +209,7 @@ export async function inspectMandateMarshalVersion(options: PinRuntimeOptions = 
           pin.installedPluginVersion === packageVersion &&
           pin.pluginCacheVersion === packageVersion &&
           pin.pluginCacheSkillVersion === packageVersion &&
+          (!requiresAuthorityProfiles(packageVersion) || pin.pluginCacheAuthorityProfilesReady === true) &&
           pin.legacySkillVersion === null,
   };
 }
@@ -201,6 +223,7 @@ export async function inspectMandateMarshalPin(options: PinRuntimeOptions = {}):
       installedPluginVersion: null,
       pluginCacheVersion: null,
       pluginCacheSkillVersion: null,
+      pluginCacheAuthorityProfilesReady: null,
       legacySkillVersion: await readLegacySkillVersion(options.home, options.codexHome),
     };
   }
@@ -209,12 +232,18 @@ export async function inspectMandateMarshalPin(options: PinRuntimeOptions = {}):
   const codexBin = await resolveCodexBin(options);
   const installed = await readInstalledPlugin(runner, codexBin).catch(() => undefined);
   const installedPluginVersion = installed?.version ?? null;
-  const cache = await inspectPluginCache(record.pluginCacheSource);
+  const cache = await inspectPluginCache(record.pluginCacheSource, record.version);
   const legacySkillVersion = await readLegacySkillVersion(options.home, options.codexHome);
+  const authorityProfilesReady = requiresAuthorityProfiles(record.version)
+    ? cache.authorityProfilesReady === true &&
+      typeof record.authorityProfilesHash === "string" &&
+      cache.authorityProfilesHash === record.authorityProfilesHash
+    : null;
   const aligned =
     installedPluginVersion === record.version &&
     cache.pluginVersion === record.version &&
     cache.skillVersion === record.version &&
+    (!requiresAuthorityProfiles(record.version) || authorityProfilesReady === true) &&
     legacySkillVersion === null;
   return {
     status: aligned ? "pinned" : "drifted",
@@ -222,6 +251,7 @@ export async function inspectMandateMarshalPin(options: PinRuntimeOptions = {}):
     installedPluginVersion,
     pluginCacheVersion: cache.pluginVersion,
     pluginCacheSkillVersion: cache.skillVersion,
+    pluginCacheAuthorityProfilesReady: authorityProfilesReady,
     legacySkillVersion,
   };
 }
@@ -294,6 +324,9 @@ export async function readPinRecord(
     ) {
       throw new Error(`PIN_STATE_INVALID:${path}`);
     }
+    if (raw.authorityProfilesHash !== undefined && !/^[0-9a-f]{64}$/u.test(raw.authorityProfilesHash)) {
+      throw new Error(`PIN_STATE_INVALID:${path}:authorityProfilesHash`);
+    }
     return raw as MandateMarshalPinRecord;
   }
 
@@ -335,7 +368,7 @@ async function verifyPublishedTarget(
   version: string,
   ref: string,
   fetchImpl: typeof fetch,
-): Promise<{ skillHash: string }> {
+): Promise<{ skillHash: string; agentHashes: ReadonlyMap<string, string> }> {
   const release = await fetchImpl(`https://api.github.com/repos/${REPOSITORY}/releases/tags/${encodeURIComponent(ref)}`, {
     headers: { Accept: "application/vnd.github+json", "User-Agent": "MandateMarshal" },
   });
@@ -361,7 +394,20 @@ async function verifyPublishedTarget(
   if (skillVersion !== version) {
     throw new Error(`PIN_TARGET_VERSION_MISMATCH: package target ${version}, Skill ${skillVersion ?? "missing"}`);
   }
-  return { skillHash: skillSha256(skillContent) };
+  const agentHashes = new Map<string, string>();
+  if (requiresAuthorityProfiles(version)) {
+    await Promise.all(
+      AUTHORITY_AGENT_FILES.map(async (file) => {
+        const response = await fetchImpl(
+          `https://raw.githubusercontent.com/${REPOSITORY}/${encodeURIComponent(ref)}/plugins/mandatemarshal/agents/${file}`,
+          { headers: { "User-Agent": "MandateMarshal" } },
+        );
+        if (!response.ok) throw new Error(`PIN_TARGET_AUTHORITY_PROFILE_MISSING:${ref}:${file}`);
+        agentHashes.set(file, skillSha256(await response.text()));
+      }),
+    );
+  }
+  return { skillHash: skillSha256(skillContent), agentHashes };
 }
 
 function normalizeVersion(value: string): string {
@@ -374,6 +420,20 @@ function isVersion(value: unknown): value is string {
   return typeof value === "string" && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u.test(value);
 }
 
+function requiresAuthorityProfiles(version: string): boolean {
+  const stable = version.split("-", 1)[0]!;
+  const minimum = AUTHORITY_AGENT_INTRO_VERSION.split("-", 1)[0]!;
+  const currentParts = stable.split(".").map(Number);
+  const minimumParts = minimum.split(".").map(Number);
+  for (let index = 0; index < 3; index += 1) {
+    const current = currentParts[index] ?? 0;
+    const required = minimumParts[index] ?? 0;
+    if (current > required) return true;
+    if (current < required) return false;
+  }
+  return true;
+}
+
 export function parseSkillVersion(content: string): string | undefined {
   const match = content.match(/^version:\s*["']?([^"'\s]+)["']?\s*$/mu);
   return match?.[1];
@@ -384,7 +444,12 @@ export function expectedPluginCacheSource(version: string, home = homedir(), cod
   return join(targetCodexHome, "plugins", "cache", MARKETPLACE, "mandatemarshal", version);
 }
 
-async function verifyPluginCache(pluginCacheSource: string, version: string, publishedSkillHash: string): Promise<void> {
+async function verifyPluginCache(
+  pluginCacheSource: string,
+  version: string,
+  publishedSkillHash: string,
+  publishedAgentHashes: ReadonlyMap<string, string>,
+): Promise<string | undefined> {
   const manifestPath = join(pluginCacheSource, ".codex-plugin", "plugin.json");
   const skillPath = join(pluginCacheSource, "skills", "mandatemarshal", "SKILL.md");
   let manifestContent: string;
@@ -412,23 +477,76 @@ async function verifyPluginCache(pluginCacheSource: string, version: string, pub
   if (skillSha256(skillContent) !== publishedSkillHash) {
     throw new Error(`PIN_CACHE_SKILL_HASH_MISMATCH:${skillPath}`);
   }
+  if (requiresAuthorityProfiles(version)) {
+    for (const file of AUTHORITY_AGENT_FILES) {
+      const expectedHash = publishedAgentHashes.get(file);
+      if (!expectedHash) throw new Error(`PIN_TARGET_AUTHORITY_PROFILE_HASH_MISSING:${version}:${file}`);
+      const profilePath = join(pluginCacheSource, "agents", file);
+      let profileContent: string;
+      try {
+        profileContent = await readFile(profilePath, "utf8");
+      } catch (error) {
+        if (isErrorCode(error, "ENOENT")) throw new Error(`PIN_CACHE_AUTHORITY_PROFILE_MISSING:${profilePath}`);
+        throw error;
+      }
+      if (skillSha256(profileContent) !== expectedHash) {
+        throw new Error(`PIN_CACHE_AUTHORITY_PROFILE_HASH_MISMATCH:${profilePath}`);
+      }
+    }
+    return authorityProfilesAggregateHash(publishedAgentHashes);
+  }
+  return undefined;
 }
 
 async function inspectPluginCache(
   pluginCacheSource: string,
-): Promise<{ pluginVersion: string | null; skillVersion: string | null }> {
+  version: string,
+): Promise<{
+  pluginVersion: string | null;
+  skillVersion: string | null;
+  authorityProfilesReady: boolean | null;
+  authorityProfilesHash: string | null;
+}> {
   try {
     const [manifestContent, skillContent] = await Promise.all([
       readFile(join(pluginCacheSource, ".codex-plugin", "plugin.json"), "utf8"),
       readFile(join(pluginCacheSource, "skills", "mandatemarshal", "SKILL.md"), "utf8"),
     ]);
     const manifest = JSON.parse(manifestContent) as { version?: unknown };
+    let authorityProfilesReady: boolean | null = null;
+    let authorityProfilesHash: string | null = null;
+    if (requiresAuthorityProfiles(version)) {
+      authorityProfilesReady = true;
+      const hashes = new Map<string, string>();
+      for (const file of AUTHORITY_AGENT_FILES) {
+        const path = join(pluginCacheSource, "agents", file);
+        try {
+          hashes.set(file, skillSha256(await readFile(path, "utf8")));
+        } catch (error) {
+          if (isErrorCode(error, "ENOENT")) {
+            authorityProfilesReady = false;
+            break;
+          }
+          throw error;
+        }
+      }
+      if (authorityProfilesReady) authorityProfilesHash = authorityProfilesAggregateHash(hashes);
+    }
     return {
       pluginVersion: isVersion(manifest.version) ? manifest.version : null,
       skillVersion: parseSkillVersion(skillContent) ?? null,
+      authorityProfilesReady,
+      authorityProfilesHash,
     };
   } catch (error) {
-    if (isErrorCode(error, "ENOENT")) return { pluginVersion: null, skillVersion: null };
+    if (isErrorCode(error, "ENOENT")) {
+      return {
+        pluginVersion: null,
+        skillVersion: null,
+        authorityProfilesReady: requiresAuthorityProfiles(version) ? false : null,
+        authorityProfilesHash: null,
+      };
+    }
     throw error;
   }
 }
@@ -475,6 +593,19 @@ async function inspectLegacySkillForCleanup(
 
 function skillSha256(content: string): string {
   return createHash("sha256").update(content.replace(/\r\n?/gu, "\n")).digest("hex");
+}
+
+function authorityProfilesAggregateHash(hashes: ReadonlyMap<string, string>): string {
+  const hash = createHash("sha256");
+  for (const file of [...AUTHORITY_AGENT_FILES].sort()) {
+    const digest = hashes.get(file);
+    if (!digest) throw new Error(`AUTHORITY_PROFILE_HASH_MISSING:${file}`);
+    hash.update(file);
+    hash.update("\0");
+    hash.update(digest);
+    hash.update("\n");
+  }
+  return hash.digest("hex");
 }
 
 async function readInstalledPlugin(runner: PinCommandRunner, codexBin: string) {

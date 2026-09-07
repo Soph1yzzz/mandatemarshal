@@ -4,6 +4,26 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-09-07
+
+### Added
+
+- Added a Frontier Authority Profile for Codex: the user-facing Parent and Fresh Reviewer now use `gpt-6-astra` with one exact Owner-selected authority effort (`low`, `medium`, `high`, `xhigh`, or `max`).
+- Added Astra Fresh Reviewer profiles for every supported authority effort while retaining `sol-high-compat` only as an explicit compatibility profile.
+- Added pure no-launch Codex exec-plan construction so tests can verify the exact model, reasoning effort, sandbox, persistence mode, and CLI argv without starting Codex.
+- Added v0.2.8+ pin verification for every bundled authority reviewer profile in the exact versioned Codex plugin cache against LF-normalized hashes from the immutable released tag.
+
+### Changed
+
+- The packaged Fresh Reviewer default moved from Sol/High to Astra/Medium. Routine and complex Implementers remain Luna/Max and Terra/High.
+- Parent is now represented as an explicit Astra authority requirement rather than `inherit`; host integrations can fail closed when an observed root-session model/effort does not match the Owner-selected authority profile.
+- `mandatemarshal version` now reports authority-profile cache readiness for releases that require the profile set.
+
+### Security
+
+- Runtime adapter input validates authority effort values rather than trusting TypeScript-only typing, and unknown efforts fail before any Codex launch plan can be used.
+- Authority effort, reviewer profile overrides, and Sol compatibility cannot be combined ambiguously; exact selection failures never authorize silent generation/effort fallback.
+
 ## [0.2.7] - 2026-09-04
 
 ### Added

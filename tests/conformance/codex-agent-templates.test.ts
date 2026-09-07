@@ -9,26 +9,36 @@ function skillVersion(text: string): string | undefined {
   return text.match(/^version:\s*["']?([^"'\s]+)["']?\s*$/mu)?.[1];
 }
 
-test("Codex agent templates pin approved v0.1 mappings", async () => {
+test("Codex agent templates pin current authority and implementation mappings", async () => {
   const routine = await readTemplate("mandatemarshal_routine_implementer.toml");
   const complex = await readTemplate("mandatemarshal_complex_implementer.toml");
   const reviewer = await readTemplate("mandatemarshal_fresh_reviewer.toml");
-  const astraReviewer = await readTemplate("mandatemarshal_fresh_reviewer_astra.toml");
   const solCompatReviewer = await readTemplate("mandatemarshal_fresh_reviewer_sol_compat.toml");
 
   expect(routine).toContain('model = "gpt-5.6-luna"');
   expect(routine).toContain('model_reasoning_effort = "max"');
   expect(complex).toContain('model = "gpt-5.6-terra"');
   expect(complex).toContain('model_reasoning_effort = "high"');
-  expect(reviewer).toContain('model = "gpt-5.6-sol"');
-  expect(reviewer).toContain('model_reasoning_effort = "high"');
+  expect(reviewer).toContain('model = "gpt-6-astra"');
+  expect(reviewer).toContain('model_reasoning_effort = "medium"');
   expect(reviewer).toContain('sandbox_mode = "read-only"');
-  expect(astraReviewer).toContain('model = "gpt-6-astra"');
-  expect(astraReviewer).toContain('model_reasoning_effort = "high"');
-  expect(astraReviewer).toContain('sandbox_mode = "read-only"');
   expect(solCompatReviewer).toContain('model = "gpt-5.6-sol"');
   expect(solCompatReviewer).toContain('model_reasoning_effort = "high"');
   expect(solCompatReviewer).toContain('sandbox_mode = "read-only"');
+
+  for (const [name, effort] of [
+    ["mandatemarshal_fresh_reviewer_astra_low.toml", "low"],
+    ["mandatemarshal_fresh_reviewer_astra_medium.toml", "medium"],
+    ["mandatemarshal_fresh_reviewer_astra.toml", "high"],
+    ["mandatemarshal_fresh_reviewer_astra_high.toml", "high"],
+    ["mandatemarshal_fresh_reviewer_astra_xhigh.toml", "xhigh"],
+    ["mandatemarshal_fresh_reviewer_astra_max.toml", "max"],
+  ] as const) {
+    const profile = await readTemplate(name);
+    expect(profile).toContain('model = "gpt-6-astra"');
+    expect(profile).toContain(`model_reasoning_effort = "${effort}"`);
+    expect(profile).toContain('sandbox_mode = "read-only"');
+  }
 });
 
 test("package, root plugin, marketplace plugin, and canonical plugin Skill metadata share one release version", async () => {
@@ -71,7 +81,12 @@ test("all bundled agent profiles stay byte-identical to installer templates", as
     "mandatemarshal_routine_implementer.toml",
     "mandatemarshal_complex_implementer.toml",
     "mandatemarshal_fresh_reviewer.toml",
+    "mandatemarshal_fresh_reviewer_astra_low.toml",
+    "mandatemarshal_fresh_reviewer_astra_medium.toml",
     "mandatemarshal_fresh_reviewer_astra.toml",
+    "mandatemarshal_fresh_reviewer_astra_high.toml",
+    "mandatemarshal_fresh_reviewer_astra_xhigh.toml",
+    "mandatemarshal_fresh_reviewer_astra_max.toml",
     "mandatemarshal_fresh_reviewer_sol_compat.toml",
   ]) {
     const [template, rootBundled, marketplaceBundled] = await Promise.all([

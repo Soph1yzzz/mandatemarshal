@@ -30,6 +30,31 @@ test("config requires complete semantic role mappings", async () => {
   expect(result.errors).toContain("roles.parent is required");
 });
 
+test("authority config binds Parent and Fresh Reviewer to the same Astra effort", async () => {
+  const config = await exampleConfig();
+  const roles = config.roles as Record<string, unknown>;
+  roles.freshReviewer = { nativeRole: "fresh-reviewer", model: "gpt-6-astra", effort: "high" };
+  const result = validateConfig(config);
+  expect(result.valid).toBeFalse();
+  expect(result.errors).toContain("roles.freshReviewer must mirror authority model/effort");
+});
+
+test("unsupported Ultra label is rejected instead of being treated as a runtime effort", async () => {
+  const config = await exampleConfig();
+  config.authority = { model: "gpt-6-astra", effort: "ultra", mirrorFreshReviewer: true };
+  const result = validateConfig(config);
+  expect(result.valid).toBeFalse();
+  expect(result.errors).toContain("authority.effort must be one of low|medium|high|xhigh|max");
+});
+
+test("authority config rejects unknown effort instead of silently substituting", async () => {
+  const config = await exampleConfig();
+  config.authority = { model: "gpt-6-astra", effort: "turbo", mirrorFreshReviewer: true };
+  const result = validateConfig(config);
+  expect(result.valid).toBeFalse();
+  expect(result.errors).toContain("authority.effort must be one of low|medium|high|xhigh|max");
+});
+
 test("owner contracts require owner level and non-empty text", async () => {
   const config = await exampleConfig();
   config.ownerContracts = [{ id: "bad", level: "parent", text: "" }];

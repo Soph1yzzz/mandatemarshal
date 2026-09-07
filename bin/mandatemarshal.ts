@@ -63,6 +63,7 @@ async function handleVersion(compact: boolean): Promise<void> {
       `Plugin: ${info.installedPluginVersion ?? "not installed"}`,
       `Cache: ${info.pluginCacheVersion ?? "not installed"}`,
       `Skill: ${info.pluginCacheSkillVersion ?? "not installed"}`,
+      `Authority profiles: ${info.pluginCacheAuthorityProfilesReady === null ? "n/a" : info.pluginCacheAuthorityProfilesReady ? "ready" : "missing"}`,
       `Legacy Skill: ${info.legacySkillVersion ?? "none"}`,
       `Status: ${displayStatus}`,
     ].join("\n"),

@@ -1,68 +1,58 @@
-# MandateMarshal v0.2.7 Release Checklist
+# MandateMarshal v0.2.8 Release Checklist
 
-This checklist is the publication gate for MandateMarshal v0.2.7.
+This checklist is the publication gate for MandateMarshal v0.2.8.
 
 ## Scope
 
-v0.2.7 is a compatibility-preserving stabilization release driven by downstream dogfooding. It keeps the v0.2.x authority model intact while making Skill-run candidate observation usable in large artifact repositories, defining safe active-receipt patch upgrades, and preparing the Fresh Reviewer lane for GPT-6 Astra without silently changing model availability assumptions.
+v0.2.8 activates the Codex Frontier Authority Profile after GPT-6 Astra availability. It changes authority-model routing and distribution verification without changing the provider-neutral role ontology.
 
 The release is intentionally limited to:
 
-- Git candidate observation bounded to HEAD/status, HEAD-relative binary diff, and non-ignored untracked bytes;
-- ignored/frozen artifact trees excluded from recursive Git candidate hashing;
-- compatible active-receipt patch upgrades recorded in place with stale authority bindings invalidated;
-- automatic downgrade and cross-line receipt migration rejected;
-- explicit `astra-high` and `sol-high-compat` Fresh Reviewer profiles at the Codex adapter boundary;
-- Luna/Max and Terra/High implementation defaults unchanged;
-- current packaged Fresh Reviewer selector retained on Sol compatibility until exact Astra availability is observed in the active Codex host;
-- public dogfooding evidence for independent Fresh Reviewer value, without universalizing one finding.
+- Parent root-session requirement -> `gpt-6-astra` / Owner-selected authority effort;
+- Fresh Reviewer -> `gpt-6-astra` / exact same effort / fresh context / read-only;
+- supported authority effort values `low | medium | high | xhigh | max`, matching the current verified Astra/Codex surface;
+- routine/complex Implementers unchanged at Luna/Max and Terra/High;
+- Sol retained only as explicit `sol-high-compat` reviewer configuration;
+- no silent effort/model fallback;
+- exact versioned-cache verification of all release-critical authority reviewer profiles;
+- pure no-launch Codex exec-plan verification.
 
-## Candidate identity
+## Authority mapping
 
-- [x] Tracked worktree mutations change candidate identity.
-- [x] Non-ignored untracked same-path content mutations change candidate identity.
-- [x] Ignored artifact mutations do not change candidate identity or require recursive artifact reads.
-- [x] Non-Git candidate behavior retains the recursive digest fallback.
-- [x] Git untracked paths are constrained beneath the repository root, while valid in-repo names such as `..candidate.txt` remain accepted.
-
-## Active receipt version boundary
-
-- [x] `0.2.6 -> 0.2.7` active receipt upgrade preserves the run ID.
-- [x] `startedWithVersion` records the original runtime after upgrade.
-- [x] `runtime-upgraded` records exact from/to versions.
-- [x] Upgrade clears candidate, Git HEAD, Parent verification, verdict, and Fresh-PASS bindings.
-- [x] Automatic downgrade fails closed.
-- [x] Cross-minor/major and prerelease automatic migration fail closed.
-
-## Reviewer model evolution
-
+- [x] Default Parent requirement is Astra/Medium.
+- [x] Default Fresh Reviewer is Astra/Medium, fresh and read-only.
+- [x] `low`, `medium`, `high`, `xhigh`, and `max` mirror exactly from Parent authority requirement to Fresh Reviewer.
 - [x] Routine Implementer remains Luna/Max.
 - [x] Complex Implementer remains Terra/High.
-- [x] `astra-high` maps exactly to `gpt-6-astra` / High.
-- [x] `sol-high-compat` maps exactly to `gpt-5.6-sol` / High.
-- [x] During staged rollout, the packaged default remains the Sol compatibility profile until exact Astra host availability is observed.
-- [x] Selecting Astra never silently falls back to Sol.
-- [x] Semantic core roles contain no model-generation dependency.
+- [x] Sol is reachable only through explicit `sol-high-compat` configuration.
+- [x] Parent mismatch fails closed when host observation is supplied.
+- [x] Unknown authority effort fails before launch planning.
+- [x] Authority effort cannot be combined ambiguously with a reviewer override.
+- [x] Unknown effort labels fail closed, and no Astra -> Sol or other silent fallback path exists.
 
-## Authority / evidence contract
+## Install / update / use path
 
-- [x] Parent verification remains candidate-bound.
-- [x] Fresh Reviewer PASS remains candidate-bound.
-- [x] `FIX`, `ESCALATE`, candidate mutation, or compatible runtime upgrade invalidates stale Fresh PASS as applicable.
-- [x] `run-completed` requires Fresh PASS for the exact current candidate.
-- [x] Public receipt creation remains fixed to `skill-contract`.
-- [x] Native plugin Skill remains the single committed runtime Skill source.
-- [x] Implementers still do not own commit/tag/push unless explicitly delegated.
+- [x] `package.json`, root plugin manifest, marketplace plugin manifest, and canonical Skill all report `0.2.8`.
+- [x] Plugin Skill remains the single committed runtime Skill source.
+- [x] Installer includes all five Astra authority reviewer profiles plus explicit Sol compatibility.
+- [x] Root/template/plugin bundled agent copies are byte-identical.
+- [x] v0.2.8 pin verification hashes the released authority profiles and compares the exact versioned plugin cache.
+- [x] Missing/tampered v0.2.8 authority profile makes pin fail closed.
+- [x] v0.2.7 and older pins are not retroactively required to contain the v0.2.8 authority profile set.
+- [x] Normal CLI delegation still resolves through the pinned marketplace checkout.
+- [x] No-launch integration proves selected authority effort reaches exact reviewer `codex exec` argv.
+- [x] No-launch integration proves reviewer sandbox remains `read-only` and execution remains fresh/ephemeral where expected.
+- [x] No-launch integration proves Luna/Terra worker routes remain unchanged.
 
-## Version consistency
+## Codex process prohibition for this release audit
 
-- [x] `package.json` reports `0.2.7`.
-- [x] Root Codex plugin manifest reports `0.2.7`.
-- [x] Marketplace/native plugin manifest reports `0.2.7`.
-- [x] Canonical native-plugin Skill frontmatter reports `0.2.7`.
-- [x] Conformance/version tests enforce release alignment.
+The requested validation for this update must not start a Codex process. Do not run `codex`, `codex exec`, `codex plugin`, `codex --version`, or any helper that invokes the real Codex executable. Installation/update behavior must be exercised through fake command runners and filesystem/cache fixtures; use-path behavior must be exercised through pure launch-plan construction and fake adapters.
 
-## Required verification
+- [x] Verification evidence contains no real Codex process launch.
+- [x] Pin/update tests use fake `PinCommandRunner` only.
+- [x] Runtime route tests use fake `CodexDriver` plus `buildCodexExecArgs` only.
+
+## Required deterministic verification
 
 Run from the audited checkout:
 
@@ -77,37 +67,34 @@ git diff --check
 npm pack --dry-run --json
 ```
 
-Also perform the bounded local self-security review defined by D-024: dependency audit, trust-boundary/static inspection, secret/local-path/publication-set checks, regression/conformance tests, package surface review, and command/path-boundary review. The repository completion contract additionally requires a fresh read-only reviewer PASS for the exact final candidate.
+Also perform a bounded self Codex-security review without launching Codex. Review authority-input validation, argv construction, model/effort fallback, Parent/reviewer separation, reviewer read-only request, pin/update trust boundaries, exact-cache path checks, release-tag/profile hashes, package surface, secrets/local paths, and unexpected executable invocation surfaces.
 
 Required results before publication:
 
 - [x] Frozen dependency install succeeds without lockfile drift.
 - [x] Strict TypeScript diagnostics: `0`.
-- [x] Full Bun test suite passes.
+- [x] Full Bun test suite passes: 126 tests / 518 assertions.
 - [x] Dependency vulnerabilities: `0`.
 - [x] Config validation passes with no warnings/errors.
 - [x] Artifact/publication scan returns no findings.
 - [x] `git diff --check` is clean.
-- [x] Package dry-run reports `mandatemarshal@0.2.7` and intended public surface only.
+- [x] Package dry-run reports `mandatemarshal@0.2.8` with 99 intended files and no Ultra prototype profile.
 - [x] No secret/credential or personal absolute path is added.
-- [x] New filesystem/version/profile surfaces have bounded adversarial coverage, including the valid `..name` path-boundary regression.
-- [x] Self-security review finds no unresolved material issue after the bounded path-boundary correction.
-- [x] Release-specific Fresh Review gate satisfied for the exact final candidate by an Owner-approved substitute review on 2026-09-04: a separate read-only review pass re-checked correctness, regressions, scope, packaging, and security boundaries after the external Sol/High and explicit Terra/High reviewer launches were blocked by the Codex account usage limit. The substitute review returned `PASS`; no implementation change followed.
+- [x] Self Codex-security review finds no unresolved material issue.
 
 ## Documentation
 
-- [x] `README.md` documents v0.2.7 candidate scaling, version upgrades, Astra profiles, and anonymized downstream dogfooding evidence.
-- [x] `docs/RUN_RECEIPTS.md` documents delta-bounded Git candidate observation and runtime upgrades.
-- [x] `docs/CODEX_SETUP.md` documents explicit Astra/Sol profiles and v0.2.7 receipt behavior.
-- [x] `docs/ARCHITECTURE.md`, `SECURITY.md`, and `docs/DECISIONS.md` reflect the new boundaries.
-- [x] `CHANGELOG.md` contains v0.2.7 dated 2026-09-04.
+- [x] `README.md` documents Astra authority effort mirroring, Sol compatibility, pin hardening, and no silent fallback.
+- [x] `docs/CODEX_SETUP.md` documents Parent root-session semantics, reviewer profiles, exact pin/update route, and no-launch plan testing.
+- [x] `docs/ARCHITECTURE.md`, `SECURITY.md`, and `docs/DECISIONS.md` reflect the new authority boundary.
+- [x] `CHANGELOG.md` contains v0.2.8 dated 2026-09-07.
 
 ## Publication
 
-- [ ] v0.2.7 release commit created from the audited candidate.
-- [ ] Clean committed candidate passes final package/test smoke.
-- [ ] Annotated `v0.2.7` tag created and pushed.
-- [ ] GitHub Release `MandateMarshal v0.2.7` published from that tag.
-- [ ] GitHub Actions passes on Ubuntu and Windows, or any pending state is reported rather than guessed.
+- [x] v0.2.8 release commit created from the audited candidate.
+- [x] Clean committed candidate passes final no-Codex package/test smoke.
+- [ ] Annotated `v0.2.8` tag created and pushed.
+- [ ] GitHub Release `MandateMarshal v0.2.8` published from that tag.
+- [ ] GitHub Actions passes on Ubuntu and Windows, or any pending/failure state is reported rather than guessed.
 
-Publication must not proceed if any deterministic gate is red, the release-specific Fresh Review gate is unsatisfied for the exact candidate, or the local self-security review finds an unresolved material issue.
+Publication must not proceed if any deterministic gate is red, the self Codex-security review has an unresolved material issue, the no-Codex audit constraint was violated, or the package/pin/use path is not mechanically evidenced.

@@ -1,8 +1,17 @@
 {
   "schemaVersion": 1,
   "host": "codex",
+  "authority": {
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "mirrorFreshReviewer": true
+  },
   "roles": {
-    "parent": { "mode": "inherit" },
+    "parent": {
+      "nativeRole": "parent",
+      "model": "gpt-6-astra",
+      "effort": "medium"
+    },
     "routineImplementer": {
       "nativeRole": "routine-implementer",
       "model": "gpt-5.6-luna",
@@ -15,8 +24,8 @@
     },
     "freshReviewer": {
       "nativeRole": "fresh-reviewer",
-      "model": "gpt-5.6-sol",
-      "effort": "high"
+      "model": "gpt-6-astra",
+      "effort": "medium"
     }
   },
   "review": {

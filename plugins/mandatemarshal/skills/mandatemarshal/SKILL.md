@@ -1,6 +1,6 @@
 ---
 name: mandatemarshal
-version: "0.2.7"
+version: "0.2.8"
 description: >
   Authority-aware coding-agent orchestration with explicit Owner/Parent/Implementer/Fresh-Reviewer
   boundaries, deterministic execution evidence, mandatory fresh QA, and no silent model/role fallback.
@@ -81,13 +81,20 @@ Core roles are semantic:
 - `complex-implementer`
 - `fresh-reviewer`
 
-Default Codex mapping during the Astra rollout window:
+Current Codex authority mapping:
 
-- routine -> GPT-5.6 Luna / Max
-- complex -> GPT-5.6 Terra / High
-- fresh reviewer -> GPT-5.6 Sol / High via the explicit `sol-high-compat` profile
+- Parent -> GPT-6 Astra / Owner-selected authority effort
+- fresh reviewer -> GPT-6 Astra / the exact same authority effort, fresh context, read-only
+- routine implementer -> GPT-5.6 Luna / Max
+- complex implementer -> GPT-5.6 Terra / High
 
-The adapter also ships an `astra-high` Fresh Reviewer profile (`gpt-6-astra` / High). Move the default selector to that profile only after the active Codex host exposes the exact model; do not silently fall back to Sol when Astra is requested. These mappings are adapter configuration, not core ontology, so future frontier reviewer generations can roll forward without changing semantic roles. A material complexity trigger may produce an explicit `LaneReclassified` event. Failure to launch a configured lane is a capability error and never authorizes silent substitution.
+Supported authority effort values are `low`, `medium`, `high`, `xhigh`, and `max`. These are the currently verified Astra/Codex values. If the exact selected effort is unavailable, hold the affected launch and report the capability mismatch. Do not invent or normalize unverified labels into a supported effort. Sol remains available only through the explicit `sol-high-compat` reviewer profile.
+
+The Parent is the user-facing root Codex session, not a child that MandateMarshal should recursively respawn. When the host exposes root-session model/effort observation, require exact `gpt-6-astra` plus the Owner-selected effort. When root-session observation is unavailable, treat the selection as an explicit host/user precondition and never claim it was mechanically observed.
+
+For Fresh Reviewer launch, prefer a host-native spawn that explicitly supplies `model=gpt-6-astra` and `reasoning_effort=<authority-effort>` when those spawn fields are exposed. Otherwise select the exact matching packaged read-only profile: `mandatemarshal_fresh_reviewer_astra_low`, `_medium`, `_high`, `_xhigh`, or `_max`. The historical `mandatemarshal_fresh_reviewer_astra` remains a High compatibility alias. Do not treat a TOML request alone as proof of the effective child model/effort when the host cannot report the resolved route; keep requested and observed routing evidence distinct.
+
+These mappings remain adapter configuration rather than core ontology, so a future frontier model can roll forward without changing semantic roles. A material complexity trigger may produce an explicit `LaneReclassified` event. Failure to launch a configured lane is a capability error and never authorizes silent substitution.
 
 ## Implementation packet
 

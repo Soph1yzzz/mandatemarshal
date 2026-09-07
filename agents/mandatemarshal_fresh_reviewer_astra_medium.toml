@@ -1,5 +1,5 @@
-name = "mandatemarshal_fresh_reviewer"
-description = "MandateMarshal fresh read-only QA/code/execution reviewer. Not an architect or policy maker."
+name = "mandatemarshal_fresh_reviewer_astra_medium"
+description = "MandateMarshal Astra Medium fresh read-only QA/code/execution reviewer. Not an architect or policy maker."
 model = "gpt-6-astra"
 model_reasoning_effort = "medium"
 sandbox_mode = "read-only"

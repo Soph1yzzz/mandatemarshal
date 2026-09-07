@@ -10,7 +10,12 @@ const files = [
   "mandatemarshal_routine_implementer.toml",
   "mandatemarshal_complex_implementer.toml",
   "mandatemarshal_fresh_reviewer.toml",
+  "mandatemarshal_fresh_reviewer_astra_low.toml",
+  "mandatemarshal_fresh_reviewer_astra_medium.toml",
   "mandatemarshal_fresh_reviewer_astra.toml",
+  "mandatemarshal_fresh_reviewer_astra_high.toml",
+  "mandatemarshal_fresh_reviewer_astra_xhigh.toml",
+  "mandatemarshal_fresh_reviewer_astra_max.toml",
   "mandatemarshal_fresh_reviewer_sol_compat.toml",
 ];
 

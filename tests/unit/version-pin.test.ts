@@ -18,6 +18,26 @@ function skillContent(version: string, suffix = ""): string {
   return `---\nname: mandatemarshal\nversion: "${version}"\n---\n${suffix}`;
 }
 
+const AUTHORITY_AGENT_FILES = [
+  "mandatemarshal_fresh_reviewer.toml",
+  "mandatemarshal_fresh_reviewer_astra_low.toml",
+  "mandatemarshal_fresh_reviewer_astra_medium.toml",
+  "mandatemarshal_fresh_reviewer_astra.toml",
+  "mandatemarshal_fresh_reviewer_astra_high.toml",
+  "mandatemarshal_fresh_reviewer_astra_xhigh.toml",
+  "mandatemarshal_fresh_reviewer_astra_max.toml",
+  "mandatemarshal_fresh_reviewer_sol_compat.toml",
+] as const;
+
+function authorityAgentContent(file: string): string {
+  return `name = "${file}"\nmodel = "gpt-6-astra"\nsandbox_mode = "read-only"\n`;
+}
+
+function needsAuthorityAgents(version: string): boolean {
+  const [major, minor, patch] = version.split(".").map(Number);
+  return (major ?? 0) > 0 || (minor ?? 0) > 2 || ((minor ?? 0) === 2 && (patch ?? 0) >= 8);
+}
+
 function releaseFetch(targetVersion: string, targetSkillVersion = targetVersion): typeof fetch {
   return (async (input: RequestInfo | URL) => {
     const url = String(input);
@@ -30,6 +50,8 @@ function releaseFetch(targetVersion: string, targetSkillVersion = targetVersion)
     if (url.endsWith("/.codex-plugin/plugin.json")) {
       return new Response(JSON.stringify({ name: "mandatemarshal", version: targetVersion }), { status: 200 });
     }
+    const agentName = AUTHORITY_AGENT_FILES.find((file) => url.endsWith(`/plugins/mandatemarshal/agents/${file}`));
+    if (agentName) return new Response(authorityAgentContent(agentName), { status: 200 });
     if (
       url.endsWith("/plugins/mandatemarshal/skills/mandatemarshal/SKILL.md") ||
       url.endsWith("/skills/orchestration/SKILL.md")
@@ -57,6 +79,12 @@ async function preparePluginCache(
     "utf8",
   );
   await writeFile(join(cache, "skills", "mandatemarshal", "SKILL.md"), skill, "utf8");
+  if (needsAuthorityAgents(version)) {
+    await mkdir(join(cache, "agents"), { recursive: true });
+    for (const file of AUTHORITY_AGENT_FILES) {
+      await writeFile(join(cache, "agents", file), authorityAgentContent(file), "utf8");
+    }
+  }
   return cache;
 }
 
@@ -165,6 +193,69 @@ describe("MandateMarshal version pinning", () => {
     expect((await readPinRecord(home, codexHome))?.pluginCacheSource).toBe(cache);
   });
 
+  test("v0.2.8 pin verifies bundled Astra authority profiles in the exact plugin cache", async () => {
+    const home = await mkdtemp(join(tmpdir(), "mandatemarshal-pin-authority-profiles-"));
+    const codexHome = join(home, ".codex");
+    const marketplaceRoot = join(home, "marketplace");
+    await preparePluginCache(codexHome, "0.2.8");
+    await pinMandateMarshal("0.2.8", {
+      home,
+      codexHome,
+      codexBin: "codex-test",
+      fetchImpl: releaseFetch("0.2.8"),
+      runner: runnerFor("0.2.8", marketplaceRoot, []),
+    });
+    const status = await inspectMandateMarshalPin({
+      home,
+      codexHome,
+      codexBin: "codex-test",
+      runner: runnerFor("0.2.8", marketplaceRoot, [], { installed: true, marketplace: true }),
+    });
+    expect(status.status).toBe("pinned");
+    expect(status.record?.authorityProfilesHash).toMatch(/^[0-9a-f]{64}$/u);
+    expect(status.pluginCacheAuthorityProfilesReady).toBeTrue();
+  });
+
+  test("v0.2.8 status detects authority profile drift after a successful pin", async () => {
+    const home = await mkdtemp(join(tmpdir(), "mandatemarshal-pin-authority-drift-"));
+    const codexHome = join(home, ".codex");
+    const marketplaceRoot = join(home, "marketplace");
+    const cache = await preparePluginCache(codexHome, "0.2.8");
+    await pinMandateMarshal("0.2.8", {
+      home,
+      codexHome,
+      codexBin: "codex-test",
+      fetchImpl: releaseFetch("0.2.8"),
+      runner: runnerFor("0.2.8", marketplaceRoot, []),
+    });
+    await writeFile(join(cache, "agents", "mandatemarshal_fresh_reviewer_astra_max.toml"), "post-pin drift\n", "utf8");
+    const status = await inspectMandateMarshalPin({
+      home,
+      codexHome,
+      codexBin: "codex-test",
+      runner: runnerFor("0.2.8", marketplaceRoot, [], { installed: true, marketplace: true }),
+    });
+    expect(status.status).toBe("drifted");
+    expect(status.pluginCacheAuthorityProfilesReady).toBeFalse();
+  });
+
+  test("v0.2.8 pin rejects an authority profile whose cache bytes do not match the released tag", async () => {
+    const home = await mkdtemp(join(tmpdir(), "mandatemarshal-pin-authority-tamper-"));
+    const codexHome = join(home, ".codex");
+    const marketplaceRoot = join(home, "marketplace");
+    const cache = await preparePluginCache(codexHome, "0.2.8");
+    await writeFile(join(cache, "agents", "mandatemarshal_fresh_reviewer_astra_max.toml"), "tampered\n", "utf8");
+    await expect(
+      pinMandateMarshal("0.2.8", {
+        home,
+        codexHome,
+        codexBin: "codex-test",
+        fetchImpl: releaseFetch("0.2.8"),
+        runner: runnerFor("0.2.8", marketplaceRoot, []),
+      }),
+    ).rejects.toThrow("PIN_CACHE_AUTHORITY_PROFILE_HASH_MISMATCH");
+  });
+
   test("latest resolves once and records the exact released version", async () => {
     const home = await mkdtemp(join(tmpdir(), "mandatemarshal-pin-latest-"));
     const codexHome = join(home, ".codex");
@@ -197,26 +288,27 @@ describe("MandateMarshal version pinning", () => {
     const home = await mkdtemp(join(tmpdir(), "mandatemarshal-version-info-"));
     const codexHome = join(home, ".codex");
     const marketplaceRoot = join(home, "marketplace");
-    await preparePluginCache(codexHome, "0.2.7");
-    await pinMandateMarshal("0.2.7", {
+    await preparePluginCache(codexHome, "0.2.8");
+    await pinMandateMarshal("0.2.8", {
       home,
       codexHome,
-      fetchImpl: releaseFetch("0.2.7"),
-      runner: runnerFor("0.2.7", marketplaceRoot, []),
+      fetchImpl: releaseFetch("0.2.8"),
+      runner: runnerFor("0.2.8", marketplaceRoot, []),
     });
 
     const info = await inspectMandateMarshalVersion({
       home,
       codexHome,
-      runner: runnerFor("0.2.7", marketplaceRoot, [], { installed: true, marketplace: true }),
+      runner: runnerFor("0.2.8", marketplaceRoot, [], { installed: true, marketplace: true }),
     });
     expect(info).toEqual({
-      version: "0.2.7",
+      version: "0.2.8",
       pinStatus: "pinned",
-      pinnedVersion: "0.2.7",
-      installedPluginVersion: "0.2.7",
-      pluginCacheVersion: "0.2.7",
-      pluginCacheSkillVersion: "0.2.7",
+      pinnedVersion: "0.2.8",
+      installedPluginVersion: "0.2.8",
+      pluginCacheVersion: "0.2.8",
+      pluginCacheSkillVersion: "0.2.8",
+      pluginCacheAuthorityProfilesReady: true,
       legacySkillVersion: null,
       aligned: true,
     });
@@ -244,6 +336,7 @@ describe("MandateMarshal version pinning", () => {
     expect(status.installedPluginVersion).toBe("0.2.3");
     expect(status.pluginCacheVersion).toBe("0.2.4");
     expect(status.pluginCacheSkillVersion).toBe("0.2.4");
+    expect(status.pluginCacheAuthorityProfilesReady).toBeNull();
     expect(status.legacySkillVersion).toBeNull();
   });
 

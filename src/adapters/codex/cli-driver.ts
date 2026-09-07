@@ -32,6 +32,37 @@ export interface CodexCliDriverOptions {
   codexHome?: string;
 }
 
+export interface CodexExecPlanInput {
+  cwd: string;
+  role: CodexNativeRoleConfig;
+  sandbox: "workspace-write" | "read-only";
+  schemaPath: string;
+  outputPath: string;
+  persistent: boolean;
+}
+
+/** Pure launch-plan construction used by runtime execution and no-launch route verification. */
+export function buildCodexExecArgs(input: CodexExecPlanInput): string[] {
+  return [
+    "exec",
+    ...(input.persistent ? ["--json"] : ["--ephemeral"]),
+    "--skip-git-repo-check",
+    "-C",
+    resolve(input.cwd),
+    "-m",
+    input.role.model,
+    "-c",
+    `model_reasoning_effort=\"${input.role.effort}\"`,
+    "-s",
+    input.sandbox,
+    "--output-schema",
+    input.schemaPath,
+    "--output-last-message",
+    input.outputPath,
+    "-",
+  ];
+}
+
 export class CodexCliDriver implements CodexDriver {
   private counter = 0;
   private readonly cwd: string;
@@ -153,24 +184,14 @@ export class CodexCliDriver implements CodexDriver {
     try {
       await writeFile(schemaPath, JSON.stringify(outputSchema), "utf8");
       const persistent = durable.context !== undefined;
-      const args = [
-        "exec",
-        ...(persistent ? ["--json"] : ["--ephemeral"]),
-        "--skip-git-repo-check",
-        "-C",
-        this.cwd,
-        "-m",
-        role.model,
-        "-c",
-        `model_reasoning_effort=\"${role.effort}\"`,
-        "-s",
+      const args = buildCodexExecArgs({
+        cwd: this.cwd,
+        role,
         sandbox,
-        "--output-schema",
         schemaPath,
-        "--output-last-message",
-        output,
-        "-",
-      ];
+        outputPath: output,
+        persistent,
+      });
       const proc = Bun.spawn([this.command, ...args], {
         cwd: this.cwd,
         stdin: "pipe",

@@ -1,6 +1,11 @@
 import type { ArtifactRule, HostCapabilities, OwnerContract } from "./core/types";
 import { COMPLEXITY_TRIGGERS, type ComplexityTrigger } from "./orchestrator/routing";
-import type { CodexNativeRoleConfig } from "./adapters/codex/role-mapping";
+import {
+  CODEX_FRONTIER_AUTHORITY_MODEL,
+  isCodexAuthorityEffort,
+  type CodexAuthorityEffort,
+  type CodexNativeRoleConfig,
+} from "./adapters/codex/role-mapping";
 
 export interface CommandPolicyConfig {
   id: string;
@@ -12,6 +17,11 @@ export interface CommandPolicyConfig {
 export interface MandateMarshalConfig {
   schemaVersion: 1;
   host: string;
+  authority?: {
+    model: typeof CODEX_FRONTIER_AUTHORITY_MODEL;
+    effort: CodexAuthorityEffort;
+    mirrorFreshReviewer: true;
+  };
   roles: {
     parent: { mode: "inherit" } | CodexNativeRoleConfig;
     routineImplementer: CodexNativeRoleConfig;
@@ -58,6 +68,30 @@ export function validateConfig(config: unknown, hostCapabilities?: HostCapabilit
     if (!isRecord(config.roles.parent)) errors.push("roles.parent is required");
     else if (config.roles.parent.mode !== "inherit") {
       validateNativeRole(config.roles.parent, undefined, "roles.parent", errors);
+    }
+  }
+  if (config.authority !== undefined) {
+    if (!isRecord(config.authority)) errors.push("authority must be an object");
+    else {
+      if (config.authority.model !== CODEX_FRONTIER_AUTHORITY_MODEL) {
+        errors.push(`authority.model must equal ${CODEX_FRONTIER_AUTHORITY_MODEL}`);
+      }
+      if (!isCodexAuthorityEffort(config.authority.effort)) {
+        errors.push("authority.effort must be one of low|medium|high|xhigh|max");
+      }
+      if (config.authority.mirrorFreshReviewer !== true) errors.push("authority.mirrorFreshReviewer must be true");
+      if (isRecord(config.roles)) {
+        const parent = config.roles.parent;
+        const reviewer = config.roles.freshReviewer;
+        if (!isRecord(parent) || parent.mode === "inherit") {
+          errors.push("authority config requires an explicit Astra Parent role mapping");
+        } else if (parent.model !== config.authority.model || parent.effort !== config.authority.effort) {
+          errors.push("roles.parent must match authority model/effort");
+        }
+        if (!isRecord(reviewer) || reviewer.model !== config.authority.model || reviewer.effort !== config.authority.effort) {
+          errors.push("roles.freshReviewer must mirror authority model/effort");
+        }
+      }
     }
   }
   if (!isRecord(config.review)) errors.push("review config is required");

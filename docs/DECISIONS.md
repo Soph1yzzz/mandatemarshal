@@ -236,3 +236,23 @@ Older mappings may remain only as explicit compatibility/configuration profiles 
 ### D-042 — Dogfooding findings may support architecture claims only at their observed strength
 
 **Decision:** Public documentation may cite an anonymized downstream dogfood case where a fresh read-only reviewer found a production-only namespace-boundary defect after focused Parent verification had passed. This is legitimate evidence that independent final-candidate review can add value. It must not be generalized into a guarantee that Fresh Reviewer catches every bug or that one dogfood result establishes universal superiority.
+
+## v0.2.8 Frontier Authority Profile — 2026-09-07
+
+### D-043 — Parent and Fresh Reviewer share one Owner-selected Astra authority effort
+
+**Decision:** Codex uses `gpt-6-astra` as the frontier authority model for the user-facing Parent and Fresh Reviewer. The Owner selects one exact authority effort and the reviewer mirrors it. Supported Astra efforts are `low`, `medium`, `high`, `xhigh`, and `max`, matching the current verified Astra/Codex surface. Unknown labels are rejected rather than normalized. An unavailable exact effort fails closed and never authorizes silent downgrade to another effort or model.
+
+Routine and complex Implementers remain separate worker policy: Luna/Max and Terra/High. Sol is retained only as the explicit `sol-high-compat` reviewer profile. Model generation and effort remain adapter-level facts rather than core semantic roles.
+
+### D-044 — Parent authority is a root-session requirement, not a recursively spawned child
+
+**Decision:** The Parent is the user-facing root Codex session. MandateMarshal must not create a child Parent merely to enforce the authority profile. When host integration exposes root-session model/effort observation, exact Astra/effort alignment is mechanically asserted. When it does not, the selected Parent profile is an explicit precondition and MandateMarshal must distinguish that from observed evidence. Fresh Reviewer selection remains mechanically bound through the adapter/custom-agent route.
+
+### D-045 — v0.2.8 pins authority profiles as release-critical executable configuration
+
+**Decision:** Starting with v0.2.8, successful `mandatemarshal pin` requires every bundled Astra authority reviewer profile and the explicit Sol compatibility profile in the exact versioned Codex plugin cache to match the immutable released tag by LF-normalized SHA-256. Manifest/Skill correctness alone is no longer sufficient because agent TOML now determines release-critical model/effort/sandbox routing. Older releases are not retroactively required to contain this profile set.
+
+### D-046 — Codex launch routing must be testable without launching Codex
+
+**Decision:** Construction of `codex exec` arguments is a pure operation shared by runtime execution and verification. Installation/update and model/effort/sandbox routing can therefore be exercised with filesystem fixtures, fake Codex plugin command runners, and launch-plan inspection without starting a Codex model session. Real-host smoke remains separate evidence and must never be implied by a no-launch test.

@@ -61,14 +61,14 @@ mandatemarshal activation enable /path/to/your-project
 Use an exact release when you want reproducibility:
 
 ```bash
-mandatemarshal pin 0.2.7
+mandatemarshal pin 0.2.8
 mandatemarshal pin status
 mandatemarshal version
 ```
 
-`mandatemarshal version` prints the runtime, exact pin, installed plugin, versioned plugin-cache manifest, cache Skill, and any legacy global Skill in one view. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version for scripts.
+`mandatemarshal version` prints the runtime, exact pin, installed plugin, versioned plugin-cache manifest, cache Skill, v0.2.8+ authority-profile readiness, and any legacy global Skill in one view. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version for scripts.
 
-`pin` uses Codex's native plugin marketplace and treats Codex's exact versioned plugin cache (`~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>`) as the only runtime Skill authority. The cache manifest and Skill version plus LF-normalized content hash must match the published release exactly. MandateMarshal no longer mirrors a discoverable global Skill into `~/.codex/skills/mandatemarshal`; an official legacy `SKILL.md` is removed during pinning only after its LF-normalized content is proven to match its own published release, while a customized same-name Skill causes pinning to stop rather than deleting it or falling back. After pinning or changing versions, start a new Codex session. Once that bundled Skill is loaded, say:
+`pin` uses Codex's native plugin marketplace and treats Codex's exact versioned plugin cache (`~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>`) as the only runtime Skill authority. The cache manifest and Skill version plus LF-normalized content hash must match the published release exactly. From v0.2.8 onward, the bundled Astra authority reviewer profiles are also hashed against the immutable released tag before the pin is accepted, so a stale or tampered cache cannot silently select a different model/effort route. MandateMarshal no longer mirrors a discoverable global Skill into `~/.codex/skills/mandatemarshal`; an official legacy `SKILL.md` is removed during pinning only after its LF-normalized content is proven to match its own published release, while a customized same-name Skill causes pinning to stop rather than deleting it or falling back. After pinning or changing versions, start a new Codex session. Once that bundled Skill is loaded, say:
 
 ```text
 Use MandateMarshal for this project.
@@ -163,12 +163,14 @@ These are adapter defaults, not core assumptions:
 | --- | --- | --- |
 | `routine-implementer` | `gpt-5.6-luna` | `max` |
 | `complex-implementer` | `gpt-5.6-terra` | `high` |
-| `fresh-reviewer` | selected frontier reviewer profile | `high` |
-| Parent | inherit | inherit |
+| `fresh-reviewer` | `gpt-6-astra` | Owner-selected authority effort |
+| Parent | `gpt-6-astra` | Owner-selected authority effort |
 
-v0.2.7 ships two explicit Fresh Reviewer profiles at the Codex adapter boundary: `astra-high` (`gpt-6-astra` / High) and `sol-high-compat` (`gpt-5.6-sol` / High). During Astra's staged rollout, the packaged default remains `sol-high-compat` until the active Codex host exposes the exact Astra model. The rollout switch is one adapter-level selector; once switched, Sol remains an explicit compatibility profile rather than a silent fallback. The provider-neutral core never depends on either model name.
+v0.2.8 makes Astra the frontier authority model. The user-facing Parent session and Fresh Reviewer share one authority effort selected by the Owner: `low`, `medium`, `high`, `xhigh`, or `max`. The reviewer still runs in fresh read-only context; sharing a model/effort does not merge its context or authority with Parent. The packaged default authority effort is `medium`, while callers may request another exact verified value. Unknown labels are rejected rather than normalized into another effort. `sol-high-compat` remains available only as an explicit compatibility reviewer profile.
 
-A settled bounded packet routes routine-first. Material complexity can be explicitly reclassified to complex with a `LaneReclassified` event. Failure to launch Luna/Max is **not** a reason to silently use Terra/High, and requesting Astra never authorizes silently substituting Sol.
+Parent is the user-facing root Codex session rather than a MandateMarshal child. When host integration can observe the root session's model/effort, MandateMarshal can assert exact Astra/effort alignment. When it cannot, the root-session choice remains an explicit precondition rather than a falsely claimed observation. Fresh Reviewer routing is mechanical and uses the matching Astra profile/exec arguments.
+
+A settled bounded packet routes routine-first. Material complexity can be explicitly reclassified to complex with a `LaneReclassified` event. Failure to launch Luna/Max is **not** a reason to silently use Terra/High, an unavailable Astra effort is not silently reduced, and requesting Astra never authorizes silently substituting Sol.
 
 Current Codex agent configuration supports project-scoped custom agents, per-agent model/reasoning configuration, and read-only sandbox requests. MandateMarshal records requested and observed capability separately rather than claiming requested isolation was enforced.
 
@@ -196,7 +198,7 @@ By default persistent run evidence is written under:
 
 so the target repository is not dirtied merely by being orchestrated.
 
-## Skill run receipts and lifecycle bridge — v0.2.7
+## Skill run receipts and lifecycle bridge — v0.2.8
 
 Normal Codex Skill orchestration carries one canonical MandateMarshal run identity across the full implementation/FIX/PASS loop. v0.2.6 added `run advance`; v0.2.7 makes candidate observation practical for repositories with large ignored artifact trees and defines the active-run version-upgrade boundary:
 
@@ -213,7 +215,7 @@ The persistent receipt under `~/.mandatemarshal/receipts/` stores only small aut
 
 `run ensure` also defines an explicit version boundary. A live receipt may move in place across a newer patch release on the same minor line (for example `0.2.6 -> 0.2.7`) while preserving its run ID and original version. The upgrade is recorded as `runtime-upgraded`, and candidate, Parent-verification, verdict, and Fresh-PASS bindings are cleared so a changed candidate algorithm or runtime cannot inherit stale authority. Downgrades and cross-line automatic migration fail closed.
 
-Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL remains intentionally fixed at 30 days in v0.2.7; configurability may be considered later if real-world use justifies it.
+Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL remains intentionally fixed at 30 days in v0.2.8; configurability may be considered later if real-world use justifies it.
 
 A `skill-contract` receipt improves traceability but is not the same claim as durable external-operation reconciliation. See [Run Receipts](docs/RUN_RECEIPTS.md).
 
@@ -285,14 +287,14 @@ mandatemarshal pin latest
 Or pin an exact release:
 
 ```bash
-mandatemarshal pin 0.2.7
+mandatemarshal pin 0.2.8
 mandatemarshal pin status
 mandatemarshal version
 ```
 
-`mandatemarshal version` is the quick human check: it reports the active runtime version, exact pin, installed Codex plugin version, canonical versioned-cache manifest/Skill versions, any legacy global Skill, and an `OK`/drift status. `--version`/`-v` emit only the runtime version.
+`mandatemarshal version` is the quick human check: it reports the active runtime version, exact pin, installed Codex plugin version, canonical versioned-cache manifest/Skill versions, v0.2.8+ authority-profile readiness, any legacy global Skill, and an `OK`/drift status. `--version`/`-v` emit only the runtime version.
 
-The selected Git tag is installed through Codex's native plugin marketplace. MandateMarshal records the marketplace/runtime checkout separately from the exact versioned plugin-cache source under `~/.mandatemarshal/pin.json`. The versioned cache is the only runtime Skill authority; pinning fails instead of searching another copy when that exact cache is missing or mismatched. Legacy global Skill discovery is not used as a fallback. Normal CLI commands still delegate to the CLI source from the pinned marketplace checkout.
+The selected Git tag is installed through Codex's native plugin marketplace. MandateMarshal records the marketplace/runtime checkout separately from the exact versioned plugin-cache source under `~/.mandatemarshal/pin.json`. The versioned cache is the only runtime Skill authority; v0.2.8+ pin verification also requires every Astra authority reviewer profile in that cache to match the immutable released tag. Pinning fails instead of searching another copy when the exact cache is missing, stale, tampered, or incomplete. Legacy global Skill discovery is not used as a fallback. Normal CLI commands still delegate to the CLI source from the pinned marketplace checkout.
 
 Start a new Codex session after changing the pin.
 
@@ -310,9 +312,9 @@ The generated profiles request:
 
 - Luna/Max + `workspace-write` for routine implementation;
 - Terra/High + `workspace-write` for complex implementation;
-- the current default Sol/High + `read-only` Fresh Reviewer;
-- an explicit Astra/High + `read-only` Fresh Reviewer profile ready for rollout;
-- an explicit Sol/High compatibility reviewer profile for post-rollout use.
+- Astra + `read-only` Fresh Reviewer profiles for `low`, `medium`, `high`, `xhigh`, and `max`;
+- Astra/Medium as the packaged default reviewer profile;
+- explicit Sol/High compatibility only via `sol-high-compat`.
 
 See `docs/CODEX_SETUP.md`.
 
