@@ -4,6 +4,26 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-09-13
+
+### Added
+
+- Added generic scoped authority grants to Skill-run receipts. A Fresh Reviewer `PASS` can bind project-defined grant scopes to the exact current candidate and explicit `reviewKind` without teaching MandateMarshal domain-specific actions.
+- Added `current | historical | revoked | consumed` grant lifecycle state plus `run authority`, `run reconcile`, `run consume`, and `run revoke` CLI surfaces.
+- Added exact Git-ref observation during reconciliation for fully-qualified refs, including annotated-tag detection and peeled commit evidence.
+
+### Changed
+
+- Candidate mutation and compatible runtime upgrades now historicalize any still-current scoped grants alongside existing Parent/Fresh-PASS invalidation.
+- A newer PASS supersedes only the grant scopes it explicitly re-grants; unrelated scopes remain current until drift, consumption, or revocation.
+- Human-facing project summaries remain explanatory only; receipt state plus current repository observation is the machine authority source of truth.
+
+### Security
+
+- Review kinds and grant scopes use bounded lowercase slugs, duplicate/oversized scope sets fail closed, and malformed persisted grant ledgers are rejected on read.
+- Git reconciliation validates fully-qualified ref syntax and uses argv-based exact Git plumbing (`show-ref --verify`, `cat-file`, `rev-parse --verify --end-of-options`) rather than fuzzy ref resolution or shell interpolation.
+- Aborted runs now historicalize current grants, clear Fresh-PASS/review authority, and reject later grant consumption or revocation.
+
 ## [0.2.8] - 2026-09-07
 
 ### Added

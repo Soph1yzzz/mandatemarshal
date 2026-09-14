@@ -1,6 +1,6 @@
 ---
 name: mandatemarshal
-version: "0.2.8"
+version: "0.2.9"
 description: >
   Authority-aware coding-agent orchestration with explicit Owner/Parent/Implementer/Fresh-Reviewer
   boundaries, deterministic execution evidence, mandatory fresh QA, and no silent model/role fallback.
@@ -39,12 +39,14 @@ Record only structured lifecycle facts; do not paste raw prompts, secrets, or la
 
 1. after an Implementer is launched and its host handle/thread is known: `mandatemarshal run advance <run-id> implementer-started --thread <id>`;
 2. after Parent has inspected and verified the actual candidate: `mandatemarshal run advance <run-id> parent-verified`;
-3. after Fresh Reviewer launch: `mandatemarshal run advance <run-id> reviewer-started --thread <id>`;
-4. after the reviewer finishes: `mandatemarshal run advance <run-id> review-verdict --verdict PASS|FIX|ESCALATE`;
+3. after Fresh Reviewer launch: `mandatemarshal run advance <run-id> reviewer-started --thread <id> [--review-kind <slug>]`;
+4. after the reviewer finishes: `mandatemarshal run advance <run-id> review-verdict --verdict PASS|FIX|ESCALATE [--grant <scope>]...`; grant scopes require a PASS and an explicit/current review kind;
 5. on `FIX`: `mandatemarshal run advance <run-id> correction-started`, correct the bounded issue, Parent-verify it, then use a new Fresh Reviewer;
 6. after `PASS`: `mandatemarshal run advance <run-id> run-completed`. Use `run-aborted` only for an actual abandoned run.
 
-For Parent verification, reviewer launch/verdict, and completion, `run advance` re-observes Git state/diff/worktree bytes first. If the candidate changed, the changed candidate is persisted before the requested transition so stale Parent/PASS bindings fail closed. If the candidate is unchanged, no redundant `candidate-observed` trace event is added. Low-level `run capture` / `run record` remain available for compatibility and developer diagnostics.
+For Parent verification, reviewer launch/verdict, and completion, `run advance` re-observes Git state/diff/worktree bytes first. If the candidate changed, the changed candidate is persisted before the requested transition so stale Parent/PASS bindings and any `current` scoped grants become non-authoritative. If the candidate is unchanged, no redundant `candidate-observed` trace event is added. Low-level `run capture` / `run record` remain available for compatibility and developer diagnostics.
+
+Scoped grants are opaque project-defined slugs; MandateMarshal does not infer what actions such as deploy, publish, smoke, or promotion mean. Inspect them with `mandatemarshal run authority <run-id>`, re-observe the candidate and optional exact Git refs with `run reconcile <run-id> [--ref refs/...]...`, and explicitly close a current grant with `run consume <run-id> --scope <slug>` or `run revoke <run-id> --scope <slug>`. Grant states are `current | historical | consumed | revoked`. Human-facing handoff prose never recreates a current grant.
 
 `mandatemarshal run list`, `run show <run-id>`, and `run history <run-id>` provide developer inspection. Recovery-critical latest state is persistent under `~/.mandatemarshal/`; detailed structured trace is temporary under the OS temp directory and has a fixed 30-day TTL. Trace expiry must never erase the persistent facts needed to bind candidate, Parent verification, unresolved state, or Fresh PASS.
 

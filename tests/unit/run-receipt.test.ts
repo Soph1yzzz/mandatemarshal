@@ -5,12 +5,16 @@ import { join } from "node:path";
 import {
   advanceRunReceiptLifecycle,
   captureRunCandidate,
+  consumeRunAuthorityGrant,
   ensureRunReceipt,
   listRunReceipts,
   pruneExpiredRunTraces,
+  readRunAuthorityState,
   readRunHistory,
   readRunReceipt,
+  reconcileRunAuthorityState,
   recordRunReceiptEvent,
+  revokeRunAuthorityGrant,
   RUN_TRACE_RETENTION_DAYS,
   startRunReceipt,
 } from "../../src/runtime/run-receipt";
@@ -434,5 +438,194 @@ test("run list returns persistent receipts newest first", async () => {
     expect(receipts.map((receipt) => receipt.runId)).toEqual(["mm-20260902-newer", "mm-20260901-older"]);
   } finally {
     await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("scoped PASS authority is generic, supersedes only matching scopes, and can be consumed or revoked", async () => {
+  const { base, storageRoot, traceRoot } = await roots("mandatemarshal-authority-grants-");
+  try {
+    const options = { storageRoot, traceRoot, mandatemarshalVersion: "0.2.9", idFactory: () => "grants" };
+    const receipt = await startRunReceipt(process.cwd(), "skill-contract", options);
+    await recordRunReceiptEvent(receipt.runId, "candidate-observed", { candidateId: "candidate-a" }, options);
+    await recordRunReceiptEvent(receipt.runId, "parent-verified", { candidateId: "candidate-a" }, options);
+    await recordRunReceiptEvent(receipt.runId, "reviewer-started", {
+      candidateId: "candidate-a",
+      threadId: "review-1",
+      reviewKind: "release-readiness",
+    }, options);
+    await recordRunReceiptEvent(receipt.runId, "review-verdict", {
+      candidateId: "candidate-a",
+      verdict: "PASS",
+      reviewKind: "release-readiness",
+      grantScopes: ["staging-deploy", "production-deploy"],
+    }, options);
+
+    await recordRunReceiptEvent(receipt.runId, "reviewer-started", {
+      candidateId: "candidate-a",
+      threadId: "review-2",
+      reviewKind: "release-readiness",
+    }, options);
+    await recordRunReceiptEvent(receipt.runId, "review-verdict", {
+      candidateId: "candidate-a",
+      verdict: "PASS",
+      grantScopes: ["staging-deploy"],
+    }, options);
+
+    let authority = await readRunAuthorityState(receipt.runId, options);
+    expect(authority.current.map((grant) => grant.scope).sort()).toEqual(["production-deploy", "staging-deploy"]);
+    expect(authority.historical.map((grant) => grant.scope)).toEqual(["staging-deploy"]);
+
+    await recordRunReceiptEvent(receipt.runId, "run-completed", {}, options);
+    await consumeRunAuthorityGrant(receipt.runId, "staging-deploy", options);
+    await revokeRunAuthorityGrant(receipt.runId, "production-deploy", options);
+    authority = await readRunAuthorityState(receipt.runId, options);
+    expect(authority.current).toEqual([]);
+    expect(authority.consumed.map((grant) => grant.scope)).toEqual(["staging-deploy"]);
+    expect(authority.revoked.map((grant) => grant.scope)).toEqual(["production-deploy"]);
+    await expect(consumeRunAuthorityGrant(receipt.runId, "staging-deploy", options)).rejects.toThrow("RUN_RECEIPT_CURRENT_GRANT_REQUIRED");
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("aborting a run historicalizes current grants and blocks later grant use", async () => {
+  const { base, storageRoot, traceRoot } = await roots("mandatemarshal-authority-abort-");
+  try {
+    const options = { storageRoot, traceRoot, mandatemarshalVersion: "0.2.9", idFactory: () => "abort-grant" };
+    const receipt = await startRunReceipt(process.cwd(), "skill-contract", options);
+    await recordRunReceiptEvent(receipt.runId, "candidate-observed", { candidateId: "candidate-a" }, options);
+    await recordRunReceiptEvent(receipt.runId, "parent-verified", { candidateId: "candidate-a" }, options);
+    await recordRunReceiptEvent(receipt.runId, "reviewer-started", {
+      candidateId: "candidate-a",
+      threadId: "review-abort",
+      reviewKind: "release-readiness",
+    }, options);
+    await recordRunReceiptEvent(receipt.runId, "review-verdict", {
+      candidateId: "candidate-a",
+      verdict: "PASS",
+      grantScopes: ["publish"],
+    }, options);
+    await recordRunReceiptEvent(receipt.runId, "run-aborted", {}, options);
+
+    const authority = await readRunAuthorityState(receipt.runId, options);
+    expect(authority.current).toEqual([]);
+    expect(authority.historical.map((grant) => grant.scope)).toEqual(["publish"]);
+    expect(authority.freshPassCurrent).toBeFalse();
+    await expect(consumeRunAuthorityGrant(receipt.runId, "publish", options)).rejects.toThrow("RUN_RECEIPT_TERMINAL");
+    await expect(revokeRunAuthorityGrant(receipt.runId, "publish", options)).rejects.toThrow("RUN_RECEIPT_TERMINAL");
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("grants require PASS plus review kind and become historical on candidate or runtime drift", async () => {
+  const { base, storageRoot, traceRoot } = await roots("mandatemarshal-authority-drift-");
+  try {
+    const oldOptions = { storageRoot, traceRoot, mandatemarshalVersion: "0.2.8", idFactory: () => "authority-drift" };
+    const receipt = await startRunReceipt(process.cwd(), "skill-contract", oldOptions);
+    await recordRunReceiptEvent(receipt.runId, "candidate-observed", { candidateId: "candidate-a" }, oldOptions);
+    await recordRunReceiptEvent(receipt.runId, "parent-verified", { candidateId: "candidate-a" }, oldOptions);
+    await recordRunReceiptEvent(receipt.runId, "reviewer-started", { candidateId: "candidate-a", threadId: "review-1" }, oldOptions);
+    await expect(recordRunReceiptEvent(receipt.runId, "review-verdict", {
+      candidateId: "candidate-a",
+      verdict: "FIX",
+      reviewKind: "security-review",
+      grantScopes: ["release"],
+    }, oldOptions)).rejects.toThrow("RUN_RECEIPT_GRANT_REQUIRES_PASS");
+    await expect(recordRunReceiptEvent(receipt.runId, "review-verdict", {
+      candidateId: "candidate-a",
+      verdict: "PASS",
+      grantScopes: ["release"],
+    }, oldOptions)).rejects.toThrow("RUN_RECEIPT_REVIEW_KIND_REQUIRED");
+
+    await recordRunReceiptEvent(receipt.runId, "review-verdict", {
+      candidateId: "candidate-a",
+      verdict: "PASS",
+      reviewKind: "security-review",
+      grantScopes: ["release"],
+    }, oldOptions);
+    let authority = await readRunAuthorityState(receipt.runId, oldOptions);
+    expect(authority.current).toHaveLength(1);
+
+    await recordRunReceiptEvent(receipt.runId, "candidate-observed", { candidateId: "candidate-b" }, oldOptions);
+    authority = await readRunAuthorityState(receipt.runId, oldOptions);
+    expect(authority.current).toEqual([]);
+    expect(authority.historical.map((grant) => grant.scope)).toEqual(["release"]);
+
+    await recordRunReceiptEvent(receipt.runId, "parent-verified", { candidateId: "candidate-b" }, oldOptions);
+    await recordRunReceiptEvent(receipt.runId, "reviewer-started", {
+      candidateId: "candidate-b",
+      threadId: "review-2",
+      reviewKind: "security-review",
+    }, oldOptions);
+    await recordRunReceiptEvent(receipt.runId, "review-verdict", {
+      candidateId: "candidate-b",
+      verdict: "PASS",
+      grantScopes: ["release"],
+    }, oldOptions);
+    const upgraded = await ensureRunReceipt(process.cwd(), "skill-contract", {
+      storageRoot,
+      traceRoot,
+      mandatemarshalVersion: "0.2.9",
+    });
+    expect(upgraded.upgraded).toBeTrue();
+    expect((await readRunAuthorityState(receipt.runId, { storageRoot, traceRoot })).current).toEqual([]);
+    expect((await readRunAuthorityState(receipt.runId, { storageRoot, traceRoot })).historical).toHaveLength(2);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("authority reconciliation re-observes candidate drift and exact annotated refs without manufacturing grants", async () => {
+  const { base, storageRoot, traceRoot } = await roots("mandatemarshal-authority-reconcile-");
+  const project = join(base, "project");
+  try {
+    await mkdir(project);
+    await runCommand(project, ["git", "init"]);
+    await runCommand(project, ["git", "config", "user.email", "mandatemarshal-test@example.invalid"]);
+    await runCommand(project, ["git", "config", "user.name", "MandateMarshal Test"]);
+    const tracked = join(project, "tracked.txt");
+    await writeFile(tracked, "base\n", "utf8");
+    await runCommand(project, ["git", "add", "tracked.txt"]);
+    await runCommand(project, ["git", "commit", "-m", "base"]);
+    await runCommand(project, ["git", "tag", "-a", "authority-test", "-m", "authority test"]);
+    const headProc = Bun.spawn(["git", "rev-parse", "HEAD"], { cwd: project, stdout: "pipe", stderr: "pipe" });
+    const [headCode, headText] = await Promise.all([headProc.exited, new Response(headProc.stdout).text()]);
+    expect(headCode).toBe(0);
+    const head = headText.trim();
+
+    const options = { storageRoot, traceRoot, mandatemarshalVersion: "0.2.9", idFactory: () => "reconcile" };
+    const receipt = await startRunReceipt(project, "skill-contract", options);
+    const verified = await advanceRunReceiptLifecycle(receipt.runId, "parent-verified", {}, options);
+    await advanceRunReceiptLifecycle(receipt.runId, "reviewer-started", {
+      threadId: "review",
+      reviewKind: "execution-readiness",
+    }, options);
+    await advanceRunReceiptLifecycle(receipt.runId, "review-verdict", {
+      verdict: "PASS",
+      grantScopes: ["execute"],
+    }, options);
+    expect((await readRunAuthorityState(receipt.runId, options)).current).toHaveLength(1);
+
+    await writeFile(tracked, "mutated\n", "utf8");
+    const reconciled = await reconcileRunAuthorityState(receipt.runId, ["refs/tags/authority-test"], options);
+    expect(reconciled.changed).toBeTrue();
+    expect(reconciled.before.candidateId).toBe(verified.candidateId);
+    expect(reconciled.after.candidateId).not.toBe(verified.candidateId);
+    expect(reconciled.authority.current).toEqual([]);
+    expect(reconciled.authority.historical.map((grant) => grant.scope)).toEqual(["execute"]);
+    expect(reconciled.refs).toEqual([
+      expect.objectContaining({
+        ref: "refs/tags/authority-test",
+        exists: true,
+        annotatedTag: true,
+        objectType: "tag",
+        peeledCommit: head,
+      }),
+    ]);
+    expect(reconciled.authority.grants).toHaveLength(1);
+    await expect(reconcileRunAuthorityState(receipt.runId, ["authority-test"], options)).rejects.toThrow("GIT_REF_INVALID");
+  } finally {
+    await rm(base, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
   }
 });

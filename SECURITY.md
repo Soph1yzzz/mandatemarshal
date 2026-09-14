@@ -155,7 +155,7 @@ The GitHub repository/release account and the local same-user Codex/MandateMarsh
 
 ### Skill-run receipts and temporary diagnostic traces
 
-v0.2.5 separates persistent authority/recovery metadata from temporary developer diagnostics; v0.2.7 hardens large-repository candidate observation and active-receipt version transitions.
+v0.2.5 separates persistent authority/recovery metadata from temporary developer diagnostics; v0.2.7 hardens large-repository candidate observation and active-receipt version transitions; v0.2.9 adds generic scoped authority reconciliation without introducing project-specific action semantics.
 
 Mitigations:
 
@@ -164,9 +164,13 @@ Mitigations:
 - generic `run record` cannot publish `candidate-observed`; `run capture` computes candidate identity mechanically;
 - Git candidate observation binds HEAD/status, the HEAD-relative binary diff, and only Git-reported non-ignored untracked bytes/links, so ignored artifact trees cannot force whole-worktree hashing while tracked and untracked candidate mutations remain detectable;
 - non-ignored untracked paths are resolved beneath the repository root and path escape fails closed;
-- a same-line active receipt patch upgrade is recorded as `runtime-upgraded` and clears candidate, Parent, verdict, and Fresh-PASS bindings; automatic downgrade or cross-line migration fails closed;
+- a same-line active receipt patch upgrade is recorded as `runtime-upgraded` and clears candidate, Parent, verdict, and Fresh-PASS bindings while historicalizing still-current scoped grants; automatic downgrade or cross-line migration fails closed;
+- review kinds and grant scopes are bounded lowercase slugs, grant sets reject duplicates and excessive cardinality, and only a PASS with an explicit/current review kind may create grants;
+- current grants bind to the exact current candidate; candidate drift makes them historical, and consume/revoke require exactly one current matching scope;
+- aborting a run historicalizes every still-current grant, clears Fresh-PASS/review authority, and rejects later consume/revoke attempts;
+- `run reconcile` re-observes repository candidate/HEAD and accepts only fully-qualified Git refs; ref syntax is checked before exact argv-based Git plumbing and ref presence never creates authority;
 - public receipt creation is fixed to `skill-contract`; callers cannot claim `durable-runtime` by passing a mode label without real durable-engine integration;
-- receipt validation rejects inconsistent Parent-verification, Fresh-PASS, and completed-state bindings;
+- receipt validation rejects inconsistent Parent-verification, Fresh-PASS, completed-state, duplicate-current-scope, stale-current-grant, and malformed finalization bindings;
 - receipt/trace directories request `0700` and files request `0600` where supported;
 - persistent minimal receipts under `~/.mandatemarshal/receipts/` have no trace TTL;
 - detailed traces live under the OS temp directory, are best-effort, and have a fixed 30-day TTL; cleanup only removes trace filenames tied to an existing safe MandateMarshal receipt ID, not arbitrary `.jsonl` files in a configured trace root;

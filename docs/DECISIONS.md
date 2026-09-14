@@ -256,3 +256,21 @@ Routine and complex Implementers remain separate worker policy: Luna/Max and Ter
 ### D-046 — Codex launch routing must be testable without launching Codex
 
 **Decision:** Construction of `codex exec` arguments is a pure operation shared by runtime execution and verification. Installation/update and model/effort/sandbox routing can therefore be exercised with filesystem fixtures, fake Codex plugin command runners, and launch-plan inspection without starting a Codex model session. Real-host smoke remains separate evidence and must never be implied by a no-launch test.
+
+## v0.2.9 Authority State Reconciliation — 2026-09-13
+
+### D-047 — The run receipt is the canonical machine authority ledger
+
+**Decision:** Candidate identity, Parent verification, Fresh Review verdicts, scoped grants, and grant lifecycle live in the persistent run receipt plus mechanically observed repository state. Human-facing handoff files, README text, AGENTS instructions, and other prose may explain that state but do not create, preserve, revoke, or consume authority by themselves. A prose statement that disagrees with the receipt or current repository observation is stale documentation, not a competing source of truth.
+
+### D-048 — Review purpose and PASS scope are explicit, generic data
+
+**Decision:** Fresh reviews may carry a bounded `reviewKind` and zero or more generic grant-scope slugs. A `PASS` may create grants only for the exact current candidate after Parent verification. Grant names are project-defined opaque slugs rather than MandateMarshal-owned domain vocabulary; the core does not know concepts such as Smoke, Formal, deploy, publish, or promotion. Existing review flows that provide no review kind or grants remain valid and retain the current final-candidate completion semantics.
+
+### D-049 — Scoped authority has an explicit lifecycle
+
+**Decision:** A scoped grant is exactly one of `current | historical | revoked | consumed`. `current` means the grant remains usable for the candidate/review that created it. `consumed` records intentional one-use completion of the authorized action. `revoked` records explicit withdrawal without implying the action occurred. `historical` is automatic loss of present authority caused by candidate mutation, compatible runtime upgrade, or supersession by a newer PASS for the same scope. Historical, revoked, and consumed grants can never silently become current again.
+
+### D-050 — Reconciliation recomputes machine facts instead of trusting summaries
+
+**Decision:** `run reconcile` re-observes the repository candidate and Git HEAD before reporting authority. Candidate drift is persisted through the existing candidate-observation path so stale Parent/PASS/grant bindings lose current authority mechanically. Callers may additionally request exact fully-qualified Git refs for observation; MandateMarshal validates ref syntax and uses exact Git plumbing rather than fuzzy name resolution. Ref observation is evidence only: the presence of a tag or branch does not itself manufacture a review grant or Owner authority.

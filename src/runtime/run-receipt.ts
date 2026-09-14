@@ -3,7 +3,7 @@ import { appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } fro
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { canonicalProjectPath, defaultMandateMarshalHome, projectActivationId } from "./project-activation";
-import { observeRepositoryCandidate } from "./repo-state";
+import { observeGitRefs, observeRepositoryCandidate, type GitRefObservation } from "./repo-state";
 
 export const RUN_TRACE_RETENTION_DAYS = 30;
 const RUN_TRACE_RETENTION_MS = RUN_TRACE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
@@ -13,6 +13,20 @@ const RUN_RECEIPT_LOCK_STALE_MS = 5 * 60 * 1000;
 export type RunReceiptMode = "skill-contract" | "durable-runtime";
 export type RunReceiptStatus = "active" | "fix-required" | "escalated" | "completed" | "aborted";
 export type RunReceiptVerdict = "PASS" | "FIX" | "ESCALATE";
+export type RunAuthorityGrantState = "current" | "historical" | "revoked" | "consumed";
+
+export interface RunAuthorityGrant {
+  id: string;
+  scope: string;
+  state: RunAuthorityGrantState;
+  candidateId: string;
+  reviewKind: string;
+  grantedAt: string;
+  grantedSequence: number;
+  finalizedAt?: string;
+  finalizedSequence?: number;
+}
+
 export type RunReceiptLifecycleTransition =
   | "implementer-started"
   | "parent-verified"
@@ -30,6 +44,8 @@ export type RunReceiptEventType =
   | "reviewer-started"
   | "review-verdict"
   | "correction-started"
+  | "authority-grant-consumed"
+  | "authority-grant-revoked"
   | "run-completed"
   | "run-aborted";
 
@@ -53,8 +69,12 @@ export interface RunReceipt {
   parentVerifiedCandidateId?: string;
   latestImplementerThreadId?: string;
   latestReviewerThreadId?: string;
+  activeReviewKind?: string;
+  latestReviewKind?: string;
+  latestReviewGrantScopes?: string[];
   latestVerdict?: RunReceiptVerdict;
   freshPassCandidateId?: string;
+  authorityGrants?: RunAuthorityGrant[];
 }
 
 export interface RunTraceEvent {
@@ -67,6 +87,9 @@ export interface RunTraceEvent {
   gitHead?: string;
   threadId?: string;
   verdict?: RunReceiptVerdict;
+  reviewKind?: string;
+  grantScopes?: string[];
+  scope?: string;
   fromVersion?: string;
   toVersion?: string;
 }
@@ -76,6 +99,33 @@ export interface RunReceiptEventInput {
   gitHead?: string;
   threadId?: string;
   verdict?: RunReceiptVerdict;
+  reviewKind?: string;
+  grantScopes?: string[];
+  scope?: string;
+}
+
+export interface RunAuthorityState {
+  schemaVersion: 1;
+  runId: string;
+  candidateId?: string;
+  gitHead?: string;
+  parentVerificationCurrent: boolean;
+  freshPassCurrent: boolean;
+  grants: RunAuthorityGrant[];
+  current: RunAuthorityGrant[];
+  historical: RunAuthorityGrant[];
+  revoked: RunAuthorityGrant[];
+  consumed: RunAuthorityGrant[];
+}
+
+export interface RunAuthorityReconciliation {
+  schemaVersion: 1;
+  runId: string;
+  changed: boolean;
+  before: { candidateId?: string; gitHead?: string };
+  after: { candidateId?: string; gitHead?: string };
+  authority: RunAuthorityState;
+  refs: GitRefObservation[];
 }
 
 export interface EnsureRunReceiptResult {
@@ -207,6 +257,53 @@ export async function captureRunCandidate(runId: string, options: RunReceiptOpti
   );
 }
 
+export async function readRunAuthorityState(runId: string, options: RunReceiptOptions = {}): Promise<RunAuthorityState> {
+  return authorityStateFromReceipt(await readRunReceipt(runId, options));
+}
+
+export async function reconcileRunAuthorityState(
+  runId: string,
+  refs: readonly string[] = [],
+  options: RunReceiptOptions = {},
+): Promise<RunAuthorityReconciliation> {
+  const beforeReceipt = await readRunReceipt(runId, options);
+  const before = {
+    ...(beforeReceipt.candidateId === undefined ? {} : { candidateId: beforeReceipt.candidateId }),
+    ...(beforeReceipt.gitHead === undefined ? {} : { gitHead: beforeReceipt.gitHead }),
+  };
+  await refreshRunCandidate(runId, options);
+  const afterReceipt = await readRunReceipt(runId, options);
+  const after = {
+    ...(afterReceipt.candidateId === undefined ? {} : { candidateId: afterReceipt.candidateId }),
+    ...(afterReceipt.gitHead === undefined ? {} : { gitHead: afterReceipt.gitHead }),
+  };
+  return {
+    schemaVersion: 1,
+    runId,
+    changed: before.candidateId !== after.candidateId || before.gitHead !== after.gitHead,
+    before,
+    after,
+    authority: authorityStateFromReceipt(afterReceipt),
+    refs: refs.length === 0 ? [] : await observeGitRefs(afterReceipt.projectPath, refs),
+  };
+}
+
+export async function consumeRunAuthorityGrant(
+  runId: string,
+  scope: string,
+  options: RunReceiptOptions = {},
+): Promise<RunReceipt> {
+  return recordRunReceiptEvent(runId, "authority-grant-consumed", { scope }, options);
+}
+
+export async function revokeRunAuthorityGrant(
+  runId: string,
+  scope: string,
+  options: RunReceiptOptions = {},
+): Promise<RunReceipt> {
+  return recordRunReceiptEvent(runId, "authority-grant-revoked", { scope }, options);
+}
+
 /**
  * Bridge a Skill lifecycle transition into the persistent receipt without requiring
  * the Parent to manually shuttle candidate IDs between `capture` and `record`.
@@ -291,7 +388,10 @@ export async function recordRunReceiptEvent(
   await bestEffortPruneExpiredRunTraces(options);
   return withReceiptLock(`run-${runId}`, options, async () => {
     const receipt = await readRunReceipt(runId, options);
-    if (receipt.status === "completed" || receipt.status === "aborted") {
+    if (
+      receipt.status === "aborted" ||
+      (receipt.status === "completed" && type !== "authority-grant-consumed" && type !== "authority-grant-revoked")
+    ) {
       throw new Error(`RUN_RECEIPT_TERMINAL:${runId}:${receipt.status}`);
     }
     const timestamp = currentDate(options).toISOString();
@@ -306,6 +406,9 @@ export async function recordRunReceiptEvent(
       ...(input.gitHead === undefined ? {} : { gitHead: requireNonEmpty(input.gitHead, "gitHead") }),
       ...(input.threadId === undefined ? {} : { threadId: requireNonEmpty(input.threadId, "threadId") }),
       ...(input.verdict === undefined ? {} : { verdict: input.verdict }),
+      ...(input.reviewKind === undefined ? {} : { reviewKind: requireAuthoritySlug(input.reviewKind, "reviewKind") }),
+      ...(input.grantScopes === undefined ? {} : { grantScopes: normalizeGrantScopes(input.grantScopes) }),
+      ...(input.scope === undefined ? {} : { scope: requireAuthoritySlug(input.scope, "scope") }),
     };
     const updated = applyEvent(receipt, event);
     await persistReceipt(updated, options);
@@ -443,8 +546,12 @@ function applyEvent(receipt: RunReceipt, event: RunTraceEvent): RunReceipt {
       delete next.candidateId;
       delete next.gitHead;
       delete next.parentVerifiedCandidateId;
+      delete next.activeReviewKind;
+      delete next.latestReviewKind;
+      delete next.latestReviewGrantScopes;
       delete next.latestVerdict;
       delete next.freshPassCandidateId;
+      historicalizeCurrentGrants(next, event);
       next.status = "active";
       return next;
     }
@@ -458,8 +565,12 @@ function applyEvent(receipt: RunReceipt, event: RunTraceEvent): RunReceipt {
       if (!event.candidateId) throw new Error("RUN_RECEIPT_CANDIDATE_REQUIRED:candidate-observed");
       if (next.candidateId !== event.candidateId) {
         delete next.parentVerifiedCandidateId;
+        delete next.activeReviewKind;
+        delete next.latestReviewKind;
+        delete next.latestReviewGrantScopes;
         delete next.latestVerdict;
         delete next.freshPassCandidateId;
+        historicalizeCurrentGrants(next, event);
       }
       next.candidateId = event.candidateId;
       if (event.gitHead !== undefined) next.gitHead = event.gitHead;
@@ -480,12 +591,30 @@ function applyEvent(receipt: RunReceipt, event: RunTraceEvent): RunReceipt {
       }
       if (!event.threadId) throw new Error("RUN_RECEIPT_THREAD_REQUIRED:reviewer-started");
       next.latestReviewerThreadId = event.threadId;
+      if (event.reviewKind === undefined) delete next.activeReviewKind;
+      else next.activeReviewKind = event.reviewKind;
       return next;
     }
     case "review-verdict": {
       requireCurrentCandidate(next, event, "review-verdict");
       if (!event.verdict) throw new Error("RUN_RECEIPT_VERDICT_REQUIRED:review-verdict");
+      if (event.reviewKind && next.activeReviewKind && event.reviewKind !== next.activeReviewKind) {
+        throw new Error(`RUN_RECEIPT_REVIEW_KIND_MISMATCH:${receipt.runId}:${next.activeReviewKind}:${event.reviewKind}`);
+      }
+      const reviewKind = event.reviewKind ?? next.activeReviewKind;
+      const grantScopes = event.grantScopes ?? [];
+      if (grantScopes.length > 0 && event.verdict !== "PASS") {
+        throw new Error(`RUN_RECEIPT_GRANT_REQUIRES_PASS:${receipt.runId}`);
+      }
+      if (grantScopes.length > 0 && !reviewKind) {
+        throw new Error(`RUN_RECEIPT_REVIEW_KIND_REQUIRED:${receipt.runId}`);
+      }
       next.latestVerdict = event.verdict;
+      if (reviewKind) next.latestReviewKind = reviewKind;
+      else delete next.latestReviewKind;
+      if (grantScopes.length > 0) next.latestReviewGrantScopes = grantScopes;
+      else delete next.latestReviewGrantScopes;
+      delete next.activeReviewKind;
       if (event.verdict === "PASS") {
         if (next.parentVerifiedCandidateId !== next.candidateId) {
           throw new Error(`RUN_RECEIPT_PARENT_VERIFICATION_REQUIRED:${receipt.runId}`);
@@ -493,6 +622,22 @@ function applyEvent(receipt: RunReceipt, event: RunTraceEvent): RunReceipt {
         const candidateId = next.candidateId;
         if (!candidateId) throw new Error("RUN_RECEIPT_CANDIDATE_REQUIRED:review-verdict");
         next.freshPassCandidateId = candidateId;
+        if (reviewKind && grantScopes.length > 0) {
+          historicalizeCurrentGrants(next, event, (grant) => grantScopes.includes(grant.scope));
+          const grants = next.authorityGrants ?? [];
+          next.authorityGrants = [
+            ...grants,
+            ...grantScopes.map((scope) => ({
+              id: `grant-${event.sequence}-${scope}`,
+              scope,
+              state: "current" as const,
+              candidateId,
+              reviewKind,
+              grantedAt: event.timestamp,
+              grantedSequence: event.sequence,
+            })),
+          ];
+        }
         next.status = "active";
       } else if (event.verdict === "FIX") {
         delete next.freshPassCandidateId;
@@ -508,6 +653,24 @@ function applyEvent(receipt: RunReceipt, event: RunTraceEvent): RunReceipt {
       next.status = "active";
       return next;
     }
+    case "authority-grant-consumed":
+    case "authority-grant-revoked": {
+      if (!event.scope) throw new Error(`RUN_RECEIPT_SCOPE_REQUIRED:${event.type}`);
+      const grants = next.authorityGrants ?? [];
+      const matches = grants.filter((grant) => grant.scope === event.scope && grant.state === "current");
+      if (matches.length !== 1) throw new Error(`RUN_RECEIPT_CURRENT_GRANT_REQUIRED:${receipt.runId}:${event.scope}`);
+      next.authorityGrants = grants.map((grant) =>
+        grant.id === matches[0]!.id
+          ? {
+              ...grant,
+              state: event.type === "authority-grant-consumed" ? "consumed" : "revoked",
+              finalizedAt: event.timestamp,
+              finalizedSequence: event.sequence,
+            }
+          : grant,
+      );
+      return next;
+    }
     case "run-completed": {
       if (!next.candidateId || next.freshPassCandidateId !== next.candidateId) {
         throw new Error(`RUN_RECEIPT_FRESH_PASS_REQUIRED:${receipt.runId}`);
@@ -516,6 +679,12 @@ function applyEvent(receipt: RunReceipt, event: RunTraceEvent): RunReceipt {
       return next;
     }
     case "run-aborted": {
+      delete next.activeReviewKind;
+      delete next.latestReviewKind;
+      delete next.latestReviewGrantScopes;
+      delete next.latestVerdict;
+      delete next.freshPassCandidateId;
+      historicalizeCurrentGrants(next, event);
       next.status = "aborted";
       return next;
     }
@@ -529,6 +698,54 @@ function requireCurrentCandidate(receipt: RunReceipt, event: RunTraceEvent, type
   if (!receipt.candidateId || receipt.candidateId !== event.candidateId) {
     throw new Error(`RUN_RECEIPT_CANDIDATE_MISMATCH:${type}:${receipt.candidateId ?? "none"}:${event.candidateId}`);
   }
+}
+
+function historicalizeCurrentGrants(
+  receipt: RunReceipt,
+  event: RunTraceEvent,
+  predicate: (grant: RunAuthorityGrant) => boolean = () => true,
+): void {
+  if (!receipt.authorityGrants?.some((grant) => grant.state === "current" && predicate(grant))) return;
+  receipt.authorityGrants = receipt.authorityGrants.map((grant) =>
+    grant.state === "current" && predicate(grant)
+      ? {
+          ...grant,
+          state: "historical",
+          finalizedAt: event.timestamp,
+          finalizedSequence: event.sequence,
+        }
+      : grant,
+  );
+}
+
+function authorityStateFromReceipt(receipt: RunReceipt): RunAuthorityState {
+  const grants = receipt.authorityGrants ?? [];
+  return {
+    schemaVersion: 1,
+    runId: receipt.runId,
+    ...(receipt.candidateId === undefined ? {} : { candidateId: receipt.candidateId }),
+    ...(receipt.gitHead === undefined ? {} : { gitHead: receipt.gitHead }),
+    parentVerificationCurrent: Boolean(receipt.candidateId && receipt.parentVerifiedCandidateId === receipt.candidateId),
+    freshPassCurrent: Boolean(receipt.candidateId && receipt.freshPassCandidateId === receipt.candidateId),
+    grants,
+    current: grants.filter((grant) => grant.state === "current"),
+    historical: grants.filter((grant) => grant.state === "historical"),
+    revoked: grants.filter((grant) => grant.state === "revoked"),
+    consumed: grants.filter((grant) => grant.state === "consumed"),
+  };
+}
+
+function requireAuthoritySlug(value: string, field: string): string {
+  const normalized = value.trim();
+  if (!/^[a-z][a-z0-9-]{0,63}$/u.test(normalized)) throw new Error(`RUN_RECEIPT_AUTHORITY_SLUG_INVALID:${field}:${value}`);
+  return normalized;
+}
+
+function normalizeGrantScopes(values: readonly string[]): string[] {
+  if (values.length > 32) throw new Error("RUN_RECEIPT_GRANT_SCOPE_LIMIT");
+  const normalized = values.map((value) => requireAuthoritySlug(value, "grantScope"));
+  if (new Set(normalized).size !== normalized.length) throw new Error("RUN_RECEIPT_GRANT_SCOPE_DUPLICATE");
+  return normalized;
 }
 
 async function writeReceiptExclusive(receipt: RunReceipt, options: RunReceiptOptions): Promise<void> {
@@ -691,6 +908,14 @@ function validateReceipt(value: unknown, expectedRunId: string): RunReceipt {
   for (const key of ["candidateId", "gitHead", "parentVerifiedCandidateId", "latestImplementerThreadId", "latestReviewerThreadId", "freshPassCandidateId"] as const) {
     if (value[key] !== undefined && !isString(value[key])) throw new Error(`RUN_RECEIPT_INVALID_FIELD:${expectedRunId}:${key}`);
   }
+  for (const key of ["activeReviewKind", "latestReviewKind"] as const) {
+    if (value[key] !== undefined && (!isString(value[key]) || !isAuthoritySlug(value[key]))) {
+      throw new Error(`RUN_RECEIPT_INVALID_FIELD:${expectedRunId}:${key}`);
+    }
+  }
+  if (value.latestReviewGrantScopes !== undefined && !isValidGrantScopeArray(value.latestReviewGrantScopes)) {
+    throw new Error(`RUN_RECEIPT_INVALID_FIELD:${expectedRunId}:latestReviewGrantScopes`);
+  }
   if (value.latestVerdict !== undefined && !isVerdict(value.latestVerdict)) throw new Error(`RUN_RECEIPT_INVALID_VERDICT:${expectedRunId}`);
   if (value.parentVerifiedCandidateId !== undefined && value.parentVerifiedCandidateId !== value.candidateId) {
     throw new Error(`RUN_RECEIPT_INVALID_PARENT_BINDING:${expectedRunId}`);
@@ -707,6 +932,7 @@ function validateReceipt(value: unknown, expectedRunId: string): RunReceipt {
   if (value.status === "completed" && (!value.candidateId || value.freshPassCandidateId !== value.candidateId)) {
     throw new Error(`RUN_RECEIPT_INVALID_COMPLETION:${expectedRunId}`);
   }
+  if (value.authorityGrants !== undefined) validateAuthorityGrants(value.authorityGrants, value.candidateId, expectedRunId);
   return value as unknown as RunReceipt;
 }
 
@@ -717,6 +943,15 @@ function validateTraceEvent(value: unknown, expectedRunId: string): RunTraceEven
   if (value.gitHead !== undefined && !isString(value.gitHead)) throw new Error(`RUN_TRACE_INVALID_GIT_HEAD:${expectedRunId}`);
   if (value.threadId !== undefined && !isString(value.threadId)) throw new Error(`RUN_TRACE_INVALID_THREAD:${expectedRunId}`);
   if (value.verdict !== undefined && !isVerdict(value.verdict)) throw new Error(`RUN_TRACE_INVALID_VERDICT:${expectedRunId}`);
+  if (value.reviewKind !== undefined && (!isString(value.reviewKind) || !isAuthoritySlug(value.reviewKind))) {
+    throw new Error(`RUN_TRACE_INVALID_REVIEW_KIND:${expectedRunId}`);
+  }
+  if (value.grantScopes !== undefined && !isValidGrantScopeArray(value.grantScopes)) {
+    throw new Error(`RUN_TRACE_INVALID_GRANT_SCOPES:${expectedRunId}`);
+  }
+  if (value.scope !== undefined && (!isString(value.scope) || !isAuthoritySlug(value.scope))) {
+    throw new Error(`RUN_TRACE_INVALID_SCOPE:${expectedRunId}`);
+  }
   if (value.fromVersion !== undefined && !isString(value.fromVersion)) throw new Error(`RUN_TRACE_INVALID_FROM_VERSION:${expectedRunId}`);
   if (value.toVersion !== undefined && !isString(value.toVersion)) throw new Error(`RUN_TRACE_INVALID_TO_VERSION:${expectedRunId}`);
   return value as unknown as RunTraceEvent;
@@ -727,11 +962,54 @@ function isRunStatus(value: unknown): value is RunReceiptStatus {
 }
 
 function isRunEventType(value: unknown): value is RunReceiptEventType {
-  return value === "run-started" || value === "runtime-upgraded" || value === "implementer-started" || value === "candidate-observed" || value === "parent-verified" || value === "reviewer-started" || value === "review-verdict" || value === "correction-started" || value === "run-completed" || value === "run-aborted";
+  return value === "run-started" || value === "runtime-upgraded" || value === "implementer-started" || value === "candidate-observed" || value === "parent-verified" || value === "reviewer-started" || value === "review-verdict" || value === "correction-started" || value === "authority-grant-consumed" || value === "authority-grant-revoked" || value === "run-completed" || value === "run-aborted";
 }
 
 function isVerdict(value: unknown): value is RunReceiptVerdict {
   return value === "PASS" || value === "FIX" || value === "ESCALATE";
+}
+
+function isAuthorityGrantState(value: unknown): value is RunAuthorityGrantState {
+  return value === "current" || value === "historical" || value === "revoked" || value === "consumed";
+}
+
+function isAuthoritySlug(value: string): boolean {
+  return /^[a-z][a-z0-9-]{0,63}$/u.test(value);
+}
+
+function isValidGrantScopeArray(value: unknown): value is string[] {
+  if (!Array.isArray(value) || value.length > 32) return false;
+  if (!value.every((scope) => isString(scope) && isAuthoritySlug(scope))) return false;
+  return new Set(value).size === value.length;
+}
+
+function validateAuthorityGrants(value: unknown, candidateId: unknown, runId: string): void {
+  if (!Array.isArray(value)) throw new Error(`RUN_RECEIPT_INVALID_GRANTS:${runId}`);
+  const ids = new Set<string>();
+  const currentScopes = new Set<string>();
+  for (const entry of value) {
+    if (!isRecord(entry) || !isString(entry.id) || !isString(entry.scope) || !isAuthoritySlug(entry.scope)) {
+      throw new Error(`RUN_RECEIPT_INVALID_GRANT:${runId}`);
+    }
+    if (ids.has(entry.id)) throw new Error(`RUN_RECEIPT_DUPLICATE_GRANT_ID:${runId}:${entry.id}`);
+    ids.add(entry.id);
+    if (!isAuthorityGrantState(entry.state) || !isString(entry.candidateId) || !isString(entry.reviewKind) || !isAuthoritySlug(entry.reviewKind)) {
+      throw new Error(`RUN_RECEIPT_INVALID_GRANT:${runId}:${entry.id}`);
+    }
+    if (!isString(entry.grantedAt) || !isPositiveInteger(entry.grantedSequence)) {
+      throw new Error(`RUN_RECEIPT_INVALID_GRANT:${runId}:${entry.id}`);
+    }
+    if (entry.state === "current") {
+      if (entry.candidateId !== candidateId) throw new Error(`RUN_RECEIPT_STALE_CURRENT_GRANT:${runId}:${entry.scope}`);
+      if (currentScopes.has(entry.scope)) throw new Error(`RUN_RECEIPT_DUPLICATE_CURRENT_GRANT:${runId}:${entry.scope}`);
+      currentScopes.add(entry.scope);
+      if (entry.finalizedAt !== undefined || entry.finalizedSequence !== undefined) {
+        throw new Error(`RUN_RECEIPT_INVALID_CURRENT_GRANT:${runId}:${entry.scope}`);
+      }
+    } else if (!isString(entry.finalizedAt) || !isPositiveInteger(entry.finalizedSequence)) {
+      throw new Error(`RUN_RECEIPT_INVALID_FINALIZED_GRANT:${runId}:${entry.scope}`);
+    }
+  }
 }
 
 function isString(value: unknown): value is string {

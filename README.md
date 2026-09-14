@@ -65,7 +65,7 @@ mandatemarshal activation enable /path/to/your-project
 Use an exact release when you want reproducibility:
 
 ```bash
-mandatemarshal pin 0.2.8
+mandatemarshal pin 0.2.9
 mandatemarshal pin status
 mandatemarshal version
 ```
@@ -202,24 +202,30 @@ By default persistent run evidence is written under:
 
 so the target repository is not dirtied merely by being orchestrated.
 
-## Skill run receipts and lifecycle bridge — v0.2.8
+## Skill run receipts and authority reconciliation — v0.2.9
 
-Normal Codex Skill orchestration carries one canonical MandateMarshal run identity across the full implementation/FIX/PASS loop. v0.2.6 added `run advance`; v0.2.7 makes candidate observation practical for repositories with large ignored artifact trees and defines the active-run version-upgrade boundary:
+Normal Codex Skill orchestration carries one canonical MandateMarshal run identity across the full implementation/FIX/PASS loop. v0.2.9 extends that receipt into a small machine-readable authority ledger without making the core project-specific:
 
 ```bash
 mandatemarshal run ensure /path/to/project
 mandatemarshal run advance <run-id> parent-verified
-mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-handle>
-mandatemarshal run advance <run-id> review-verdict --verdict PASS
-mandatemarshal run advance <run-id> run-completed
-mandatemarshal run show <run-id>
+mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-handle> --review-kind release-readiness
+mandatemarshal run advance <run-id> review-verdict --verdict PASS --grant staging-deploy --grant production-deploy
+mandatemarshal run authority <run-id>
+mandatemarshal run reconcile <run-id> --ref refs/tags/v0.2.9
+mandatemarshal run consume <run-id> --scope staging-deploy
+mandatemarshal run revoke <run-id> --scope production-deploy
 ```
 
-The persistent receipt under `~/.mandatemarshal/receipts/` stores only small authority/recovery facts such as project identity, current candidate, Git HEAD, Parent verification, thread references, and Fresh Reviewer binding. For Git repositories, candidate identity is now derived from Git HEAD, porcelain state, the HEAD-relative binary diff, and the bytes of non-ignored untracked files. MandateMarshal does **not** recursively hash unchanged tracked files or ignored artifact trees. This preserves candidate sensitivity to tracked and untracked work while avoiding the downstream dogfood failure mode where large frozen/ignored artifact trees were re-read on every candidate-bound transition. Non-Git repositories retain the recursive content digest fallback.
+Grant scopes and review kinds are bounded opaque slugs chosen by the project. MandateMarshal does not assign domain meaning to names such as deploy, publish, smoke, or promotion. A grant can be `current`, `historical`, `consumed`, or `revoked`. Candidate drift and compatible runtime upgrades automatically move still-current grants to `historical`; a newer PASS supersedes only scopes it explicitly re-grants. `consume` records that a current authorization was intentionally used, while `revoke` withdraws it without claiming the action happened.
+
+`run reconcile` recomputes candidate identity and Git HEAD from the repository before reporting authority. It can also observe exact fully-qualified Git refs such as `refs/tags/...`, including annotated-tag and peeled-commit evidence. Ref presence is evidence only and never manufactures a grant. Human-facing README, AGENTS, handoff, or state-summary prose is likewise explanatory rather than authoritative when it disagrees with the receipt and current repository observation.
+
+The persistent receipt under `~/.mandatemarshal/receipts/` stores only small authority/recovery facts such as project identity, current candidate, Git HEAD, Parent verification, thread references, Fresh Reviewer binding, and scoped grant lifecycle. For Git repositories, candidate identity is derived from Git HEAD, porcelain state, the HEAD-relative binary diff, and the bytes of non-ignored untracked files. MandateMarshal does **not** recursively hash unchanged tracked files or ignored artifact trees. Non-Git repositories retain the recursive content digest fallback.
 
 `run ensure` also defines an explicit version boundary. A live receipt may move in place across a newer patch release on the same minor line (for example `0.2.6 -> 0.2.7`) while preserving its run ID and original version. The upgrade is recorded as `runtime-upgraded`, and candidate, Parent-verification, verdict, and Fresh-PASS bindings are cleared so a changed candidate algorithm or runtime cannot inherit stale authority. Downgrades and cross-line automatic migration fail closed.
 
-Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL remains intentionally fixed at 30 days in v0.2.8; configurability may be considered later if real-world use justifies it.
+Project-level receipt creation and run-level receipt updates use short-lived filesystem locks to avoid duplicate active runs and lost updates across concurrent host contexts. Detailed structured trace lives under the OS temporary directory (`%TEMP%\\mandatemarshal\\traces` on Windows) with a **fixed 30-day TTL**. Trace writes/cleanup are best-effort and never delete or invalidate the persistent minimal receipt. The TTL remains intentionally fixed at 30 days in v0.2.9; configurability may be considered later if real-world use justifies it.
 
 A `skill-contract` receipt improves traceability but is not the same claim as durable external-operation reconciliation. See [Run Receipts](docs/RUN_RECEIPTS.md).
 
@@ -291,7 +297,7 @@ mandatemarshal pin latest
 Or pin an exact release:
 
 ```bash
-mandatemarshal pin 0.2.8
+mandatemarshal pin 0.2.9
 mandatemarshal pin status
 mandatemarshal version
 ```

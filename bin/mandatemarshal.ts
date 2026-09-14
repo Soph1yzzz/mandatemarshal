@@ -12,11 +12,15 @@ import { inspectDurableRun, recordResumeRequest } from "../src/runtime/durable-s
 import {
   advanceRunReceiptLifecycle,
   captureRunCandidate,
+  consumeRunAuthorityGrant,
   ensureRunReceipt,
   listRunReceipts,
+  readRunAuthorityState,
   readRunHistory,
   readRunReceipt,
+  reconcileRunAuthorityState,
   recordRunReceiptEvent,
+  revokeRunAuthorityGrant,
   startRunReceipt,
   type RunReceiptEventInput,
   type RunReceiptEventType,
@@ -141,14 +145,39 @@ async function handleRun(action: string | undefined, targetArg: string | undefin
       console.log(JSON.stringify(await captureRunCandidate(targetArg, receiptOptions), null, 2));
       return;
     }
+    case "authority": {
+      requireRunId(targetArg);
+      console.log(JSON.stringify(await readRunAuthorityState(targetArg, receiptOptions), null, 2));
+      return;
+    }
+    case "reconcile": {
+      requireRunId(targetArg);
+      console.log(JSON.stringify(await reconcileRunAuthorityState(targetArg, readFlagValues("--ref"), receiptOptions), null, 2));
+      return;
+    }
+    case "consume":
+    case "revoke": {
+      requireRunId(targetArg);
+      const scope = readFlagValue("--scope");
+      if (!scope) throw new Error("RUN_RECEIPT_SCOPE_REQUIRED");
+      const receipt = action === "consume"
+        ? await consumeRunAuthorityGrant(targetArg, scope, receiptOptions)
+        : await revokeRunAuthorityGrant(targetArg, scope, receiptOptions);
+      console.log(JSON.stringify(receipt, null, 2));
+      return;
+    }
     case "advance": {
       requireRunId(targetArg);
       const transition = parseRunLifecycleTransition(eventArg);
       const thread = readFlagValue("--thread");
       const verdict = readFlagValue("--verdict");
+      const reviewKind = readFlagValue("--review-kind");
+      const grants = readFlagValues("--grant");
       const input: RunReceiptEventInput = {
         ...(thread === undefined ? {} : { threadId: thread }),
         ...(verdict === undefined ? {} : { verdict: parseVerdict(verdict) }),
+        ...(reviewKind === undefined ? {} : { reviewKind }),
+        ...(grants.length === 0 ? {} : { grantScopes: grants }),
       };
       console.log(JSON.stringify(await advanceRunReceiptLifecycle(targetArg, transition, input, receiptOptions), null, 2));
       return;
@@ -159,10 +188,14 @@ async function handleRun(action: string | undefined, targetArg: string | undefin
       const candidate = readFlagValue("--candidate");
       const thread = readFlagValue("--thread");
       const verdict = readFlagValue("--verdict");
+      const reviewKind = readFlagValue("--review-kind");
+      const grants = readFlagValues("--grant");
       const input: RunReceiptEventInput = {
         ...(candidate === undefined ? {} : { candidateId: candidate }),
         ...(thread === undefined ? {} : { threadId: thread }),
         ...(verdict === undefined ? {} : { verdict: parseVerdict(verdict) }),
+        ...(reviewKind === undefined ? {} : { reviewKind }),
+        ...(grants.length === 0 ? {} : { grantScopes: grants }),
       };
       console.log(JSON.stringify(await recordRunReceiptEvent(targetArg, event, input, receiptOptions), null, 2));
       return;
@@ -250,9 +283,19 @@ async function handlePin(action: string | undefined): Promise<void> {
 }
 
 function readFlagValue(flag: string): string | undefined {
-  const index = process.argv.indexOf(flag);
-  if (index < 0) return undefined;
-  return process.argv[index + 1];
+  const values = readFlagValues(flag);
+  return values[0];
+}
+
+function readFlagValues(flag: string): string[] {
+  const values: string[] = [];
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] !== flag) continue;
+    const value = process.argv[index + 1];
+    if (value === undefined || value.startsWith("--")) throw new Error(`FLAG_VALUE_REQUIRED:${flag}`);
+    values.push(value);
+  }
+  return values;
 }
 
 function printUsage(): void {
@@ -263,9 +306,11 @@ function printUsage(): void {
       "  mandatemarshal activation <status|enable|disable|resolve> [project-path] [--explicit]",
       "  mandatemarshal run <start|ensure> [project-path]",
       "  mandatemarshal run list",
-      "  mandatemarshal run <show|history|capture> <run-id>",
-      "  mandatemarshal run advance <run-id> <transition> [--thread <id>] [--verdict PASS|FIX|ESCALATE]",
-      "  mandatemarshal run record <run-id> <event> [--candidate <id>] [--thread <id>] [--verdict PASS|FIX|ESCALATE]",
+      "  mandatemarshal run <show|history|capture|authority> <run-id>",
+      "  mandatemarshal run reconcile <run-id> [--ref <refs/...>]...",
+      "  mandatemarshal run <consume|revoke> <run-id> --scope <slug>",
+      "  mandatemarshal run advance <run-id> <transition> [--thread <id>] [--verdict PASS|FIX|ESCALATE] [--review-kind <slug>] [--grant <slug>]...",
+      "  mandatemarshal run record <run-id> <event> [--candidate <id>] [--thread <id>] [--verdict PASS|FIX|ESCALATE] [--review-kind <slug>] [--grant <slug>]...",
       "  mandatemarshal run <status|resume> <run-id> [--root <runtime-root>]",
       "  mandatemarshal pin [status|latest|<version>]",
 

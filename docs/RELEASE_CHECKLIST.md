@@ -1,56 +1,61 @@
-# MandateMarshal v0.2.8 Release Checklist
+# MandateMarshal v0.2.9 Release Checklist
 
-This checklist is the publication gate for MandateMarshal v0.2.8.
+This checklist is the publication gate for MandateMarshal v0.2.9.
 
 ## Scope
 
-v0.2.8 activates the Codex Frontier Authority Profile after GPT-6 Astra availability. It changes authority-model routing and distribution verification without changing the provider-neutral role ontology.
+v0.2.9 is a compatibility-preserving authority-state release. It does not change the v0.2.8 Astra/Luna/Terra routing policy. The release adds a generic machine-readable authority ledger to Skill-run receipts and a reconciliation path that recomputes repository facts instead of trusting handoff prose.
 
 The release is intentionally limited to:
 
-- Parent root-session requirement -> `gpt-6-astra` / Owner-selected authority effort;
-- Fresh Reviewer -> `gpt-6-astra` / exact same effort / fresh context / read-only;
-- supported authority effort values `low | medium | high | xhigh | max`, matching the current verified Astra/Codex surface;
-- routine/complex Implementers unchanged at Luna/Max and Terra/High;
-- Sol retained only as explicit `sol-high-compat` reviewer configuration;
-- no silent effort/model fallback;
-- exact versioned-cache verification of all release-critical authority reviewer profiles;
-- pure no-launch Codex exec-plan verification.
+- explicit review-purpose slugs;
+- generic PASS grant scopes with no project-specific vocabulary in core;
+- `current | historical | consumed | revoked` grant lifecycle;
+- candidate/runtime drift invalidation of current grants;
+- scope-specific supersession by newer PASS evidence;
+- explicit consume/revoke operations;
+- candidate/HEAD reconciliation plus exact fully-qualified Git-ref observation;
+- no authority creation from README, AGENTS, handoff documents, tags, or branches;
+- existing v0.2.8 model routing unchanged.
 
-## Authority mapping
+## Authority-state behavior
 
-- [x] Default Parent requirement is Astra/Medium.
-- [x] Default Fresh Reviewer is Astra/Medium, fresh and read-only.
-- [x] `low`, `medium`, `high`, `xhigh`, and `max` mirror exactly from Parent authority requirement to Fresh Reviewer.
-- [x] Routine Implementer remains Luna/Max.
-- [x] Complex Implementer remains Terra/High.
-- [x] Sol is reachable only through explicit `sol-high-compat` configuration.
-- [x] Parent mismatch fails closed when host observation is supplied.
-- [x] Unknown authority effort fails before launch planning.
-- [x] Authority effort cannot be combined ambiguously with a reviewer override.
-- [x] Unknown effort labels fail closed, and no Astra -> Sol or other silent fallback path exists.
+- [x] PASS grants bind to the exact current Parent-verified candidate.
+- [x] Grants require an explicit/current review kind.
+- [x] FIX/ESCALATE cannot create grants.
+- [x] Candidate mutation moves every current grant to `historical`.
+- [x] Compatible runtime upgrade moves every current grant to `historical`.
+- [x] A newer PASS supersedes only scopes it explicitly re-grants.
+- [x] `consume` and `revoke` require exactly one current matching scope.
+- [x] Historical/consumed/revoked grants do not silently become current again.
+- [x] Existing review flows with no review kind or grant remain compatible.
+- [x] Receipt validation fails closed on malformed, stale, duplicate-current, or inconsistent grant state.
 
-## Install / update / use path
+## Reconciliation and Git boundary
 
-- [x] `package.json`, root plugin manifest, marketplace plugin manifest, and canonical Skill all report `0.2.8`.
-- [x] Plugin Skill remains the single committed runtime Skill source.
-- [x] Installer includes all five Astra authority reviewer profiles plus explicit Sol compatibility.
-- [x] Root/template/plugin bundled agent copies are byte-identical.
-- [x] v0.2.8 pin verification hashes the released authority profiles and compares the exact versioned plugin cache.
-- [x] Missing/tampered v0.2.8 authority profile makes pin fail closed.
-- [x] v0.2.7 and older pins are not retroactively required to contain the v0.2.8 authority profile set.
-- [x] Normal CLI delegation still resolves through the pinned marketplace checkout.
-- [x] No-launch integration proves selected authority effort reaches exact reviewer `codex exec` argv.
-- [x] No-launch integration proves reviewer sandbox remains `read-only` and execution remains fresh/ephemeral where expected.
-- [x] No-launch integration proves Luna/Terra worker routes remain unchanged.
+- [x] `run reconcile` re-observes candidate identity and Git HEAD before reporting authority.
+- [x] Candidate drift is persisted through the existing candidate-observation path.
+- [x] Optional Git refs must be fully-qualified `refs/...` values.
+- [x] Ref observation uses argv-based exact Git plumbing; no shell interpolation is introduced.
+- [x] Annotated tags report object type and peeled commit evidence.
+- [x] Ref presence is evidence only and never creates a grant.
+- [x] Human-facing prose is not a competing authority database.
+
+## CLI surface
+
+- [x] `run authority <run-id>` exposes the machine authority view.
+- [x] `run reconcile <run-id> [--ref refs/...]...` exposes reconciliation evidence.
+- [x] `run advance ... reviewer-started --review-kind <slug>` binds review purpose.
+- [x] `run advance ... review-verdict --verdict PASS --grant <slug>...` creates scoped grants.
+- [x] `run consume <run-id> --scope <slug>` records intentional use.
+- [x] `run revoke <run-id> --scope <slug>` records explicit withdrawal.
 
 ## Codex process prohibition for this release audit
 
-The requested validation for this update must not start a Codex process. Do not run `codex`, `codex exec`, `codex plugin`, `codex --version`, or any helper that invokes the real Codex executable. Installation/update behavior must be exercised through fake command runners and filesystem/cache fixtures; use-path behavior must be exercised through pure launch-plan construction and fake adapters.
+The requested audit must not start a Codex process. Do not run `codex`, `codex exec`, `codex plugin`, `codex --version`, or any helper that invokes the real Codex executable.
 
 - [x] Verification evidence contains no real Codex process launch.
-- [x] Pin/update tests use fake `PinCommandRunner` only.
-- [x] Runtime route tests use fake `CodexDriver` plus `buildCodexExecArgs` only.
+- [x] Existing no-launch adapter/pin tests remain green.
 
 ## Required deterministic verification
 
@@ -67,34 +72,35 @@ git diff --check
 npm pack --dry-run --json
 ```
 
-Also perform a bounded self Codex-security review without launching Codex. Review authority-input validation, argv construction, model/effort fallback, Parent/reviewer separation, reviewer read-only request, pin/update trust boundaries, exact-cache path checks, release-tag/profile hashes, package surface, secrets/local paths, and unexpected executable invocation surfaces.
+Also perform a bounded self Codex-security review without launching Codex. Review new slug/ref inputs, receipt validation, grant-state transitions, locking/concurrency, Git argv construction, package surface, secrets/local paths, dependency findings, and unexpected executable invocation surfaces.
 
 Required results before publication:
 
 - [x] Frozen dependency install succeeds without lockfile drift.
 - [x] Strict TypeScript diagnostics: `0`.
-- [x] Full Bun test suite passes: 126 tests / 518 assertions.
+- [x] Full Bun test suite passes: 131 tests / 563 assertions across 25 files.
 - [x] Dependency vulnerabilities: `0`.
 - [x] Config validation passes with no warnings/errors.
 - [x] Artifact/publication scan returns no findings.
 - [x] `git diff --check` is clean.
-- [x] Package dry-run reports `mandatemarshal@0.2.8` with 99 intended files and no Ultra prototype profile.
+- [x] Package dry-run reports `mandatemarshal@0.2.9` with 100 intended files.
 - [x] No secret/credential or personal absolute path is added.
-- [x] Self Codex-security review finds no unresolved material issue.
+- [x] Self Codex-security review finds no unresolved material issue; the abort-path grant-lifetime issue found during review was corrected and regression-tested.
 
-## Documentation
+## Documentation and metadata
 
-- [x] `README.md` documents Astra authority effort mirroring, Sol compatibility, pin hardening, and no silent fallback.
-- [x] `docs/CODEX_SETUP.md` documents Parent root-session semantics, reviewer profiles, exact pin/update route, and no-launch plan testing.
-- [x] `docs/ARCHITECTURE.md`, `SECURITY.md`, and `docs/DECISIONS.md` reflect the new authority boundary.
-- [x] `CHANGELOG.md` contains v0.2.8 dated 2026-09-07.
+- [x] `package.json`, root plugin manifest, marketplace plugin manifest, and canonical Skill report `0.2.9`.
+- [x] `README.md` documents scoped authority and reconciliation.
+- [x] `README.ja.md` documents the same behavior in natural Japanese.
+- [x] `docs/CODEX_SETUP.md`, `docs/RUN_RECEIPTS.md`, `docs/ARCHITECTURE.md`, `SECURITY.md`, and `docs/DECISIONS.md` reflect the authority-state boundary.
+- [x] `CHANGELOG.md` contains v0.2.9 dated 2026-09-13.
 
 ## Publication
 
-- [x] v0.2.8 release commit created from the audited candidate.
-- [x] Clean committed candidate passes final no-Codex package/test smoke.
-- [ ] Annotated `v0.2.8` tag created and pushed.
-- [ ] GitHub Release `MandateMarshal v0.2.8` published from that tag.
+- [ ] v0.2.9 release commit created from the audited candidate.
+- [ ] Clean committed candidate passes final no-Codex package/test smoke.
+- [ ] Annotated `v0.2.9` tag created and pushed.
+- [ ] GitHub Release `MandateMarshal v0.2.9` published from that tag.
 - [ ] GitHub Actions passes on Ubuntu and Windows, or any pending/failure state is reported rather than guessed.
 
-Publication must not proceed if any deterministic gate is red, the self Codex-security review has an unresolved material issue, the no-Codex audit constraint was violated, or the package/pin/use path is not mechanically evidenced.
+Publication must not proceed if any deterministic gate is red, the self Codex-security review has an unresolved material issue, the no-Codex audit constraint was violated, or reconciliation can manufacture authority from non-receipt evidence.

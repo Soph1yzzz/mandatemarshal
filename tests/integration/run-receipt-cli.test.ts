@@ -74,3 +74,45 @@ test("run receipt CLI starts, records, lists, shows and traces a skill-contract 
     await rm(base, { recursive: true, force: true });
   }
 });
+
+test("run authority CLI creates, inspects, reconciles, consumes and revokes generic grants", async () => {
+  const base = await mkdtemp(join(tmpdir(), "mandatemarshal-authority-cli-"));
+  const receiptRoot = join(base, "receipts");
+  const traceRoot = join(base, "traces");
+  const roots = ["--receipt-root", receiptRoot, "--trace-root", traceRoot];
+  try {
+    const started = await runCli(["run", "start", process.cwd(), ...roots]);
+    expect(started.code).toBe(0);
+    const runId = JSON.parse(started.stdout).runId as string;
+    expect((await runCli(["run", "advance", runId, "parent-verified", ...roots])).code).toBe(0);
+    expect((await runCli([
+      "run", "advance", runId, "reviewer-started", "--thread", "review-authority", "--review-kind", "release-readiness", ...roots,
+    ])).code).toBe(0);
+    expect((await runCli([
+      "run", "advance", runId, "review-verdict", "--verdict", "PASS", "--grant", "publish", "--grant", "deploy", ...roots,
+    ])).code).toBe(0);
+
+    const authority = await runCli(["run", "authority", runId, ...roots]);
+    expect(authority.code).toBe(0);
+    expect(JSON.parse(authority.stdout).current.map((grant: { scope: string }) => grant.scope).sort()).toEqual(["deploy", "publish"]);
+
+    const reconciled = await runCli(["run", "reconcile", runId, "--ref", "refs/tags/v0.2.8", ...roots]);
+    expect(reconciled.code).toBe(0);
+    const reconcilePayload = JSON.parse(reconciled.stdout);
+    expect(reconcilePayload.refs[0]).toEqual(expect.objectContaining({ ref: "refs/tags/v0.2.8", exists: true, annotatedTag: true }));
+    expect(reconcilePayload.authority.current).toHaveLength(2);
+
+    expect((await runCli(["run", "consume", runId, "--scope", "publish", ...roots])).code).toBe(0);
+    expect((await runCli(["run", "revoke", runId, "--scope", "deploy", ...roots])).code).toBe(0);
+    const finalAuthority = JSON.parse((await runCli(["run", "authority", runId, ...roots])).stdout);
+    expect(finalAuthority.current).toEqual([]);
+    expect(finalAuthority.consumed[0].scope).toBe("publish");
+    expect(finalAuthority.revoked[0].scope).toBe("deploy");
+
+    const fuzzyRef = await runCli(["run", "reconcile", runId, "--ref", "v0.2.8", ...roots]);
+    expect(fuzzyRef.code).not.toBe(0);
+    expect(fuzzyRef.stderr).toContain("GIT_REF_INVALID");
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});

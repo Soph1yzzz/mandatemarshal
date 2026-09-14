@@ -26,7 +26,7 @@ mandatemarshal pin latest
 to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
 
 ```bash
-mandatemarshal pin 0.2.8
+mandatemarshal pin 0.2.9
 ```
 
 for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift; v0.2.8+ also requires the Astra authority profile set to be present in the exact versioned cache.
@@ -128,24 +128,27 @@ Later coding requests in the same project may continue without repeating the bra
 
 The registry defaults to `~/.mandatemarshal/projects/`, so activation does not dirty the target repository. v0.1 identifies a project by canonical path; moving/renaming it may require explicit activation again.
 
-## Skill-run receipts — v0.2.8
+## Skill-run receipts and authority reconciliation — v0.2.9
 
-When the packaged CLI is available, Skill-driven coding objectives use a lightweight canonical run envelope. Prefer the lifecycle bridge for normal operation:
+When the packaged CLI is available, Skill-driven coding objectives use a lightweight canonical run envelope. v0.2.9 also stores generic scoped authority in that receipt. Prefer the lifecycle bridge for normal operation:
 
 ```bash
 mandatemarshal run ensure /path/to/project
 mandatemarshal run advance <run-id> parent-verified
-mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-handle>
-mandatemarshal run advance <run-id> review-verdict --verdict PASS
-mandatemarshal run advance <run-id> run-completed
-mandatemarshal run show <run-id>
+mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-handle> --review-kind release-readiness
+mandatemarshal run advance <run-id> review-verdict --verdict PASS --grant publish
+mandatemarshal run authority <run-id>
+mandatemarshal run reconcile <run-id> --ref refs/tags/v0.2.9
+mandatemarshal run consume <run-id> --scope publish
 ```
 
 `ensure` reuses the only active receipt for the canonical project, creates one when none exists, serializes concurrent creation with a short-lived project lock, and fails on ambiguous multiple active receipts. If the active receipt was created by an older stable patch on the same major/minor line, `ensure` upgrades it in place, records `runtime-upgraded`, preserves the run ID/original version, and clears candidate/Parent/verdict/Fresh-PASS bindings. Automatic downgrade and cross-line migration are rejected.
 
 Candidate-bound `run advance` transitions mechanically re-observe the candidate. Git repositories bind HEAD, porcelain state, the HEAD-relative binary diff, and non-ignored untracked bytes without recursively rereading unchanged tracked files or ignored artifact trees. A changed candidate is persisted before evaluating the requested transition; unchanged observations do not add redundant candidate trace events. Low-level `capture`/`record` remain available for compatibility and diagnostics, and generic `run record` still cannot publish `candidate-observed`.
 
-The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.8. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
+A PASS may grant one or more project-defined slug scopes only when a review kind is present. Current grants are candidate-bound. Candidate drift and compatible runtime upgrade make them historical; a newer PASS supersedes only the scopes it explicitly re-grants. `run consume` and `run revoke` finalize one current scope explicitly. `run reconcile` re-observes candidate/HEAD and may inspect only fully-qualified Git refs (`refs/...`) using exact Git plumbing. Git ref presence is evidence, never authority creation.
+
+The persistent minimal receipt lives under `~/.mandatemarshal/receipts/`. Run-level receipt updates use a short-lived filesystem lock to avoid lost updates. Detailed structured trace lives in the OS temp directory under `mandatemarshal/traces/`, is best-effort, and has a fixed 30-day TTL in v0.2.9. The trace TTL is not configurable in this release and never applies to the persistent receipt. See `docs/RUN_RECEIPTS.md`.
 
 A `skill-contract` receipt is traceability evidence, not a claim that the full durable external-operation reconciliation layer was active.
 

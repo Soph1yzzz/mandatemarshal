@@ -101,7 +101,7 @@ mandatemarshal activation enable /path/to/your-project
 再現性を優先する場合はversionを固定します。
 
 ```bash
-mandatemarshal pin 0.2.8
+mandatemarshal pin 0.2.9
 mandatemarshal pin status
 mandatemarshal version
 ```
@@ -267,18 +267,24 @@ activation stateはproject外へ保存します。
 
 そのため、MandateMarshalを有効化しただけで対象repositoryがdirtyになることはありません。
 
-## Run receipt
+## Run receiptとauthorityの照合
 
-通常のSkill経由でも、FIX/PASS loopをまたいで同じrunを追えるよう、軽量なreceiptを持ちます。
+通常のSkill経由でも、FIX/PASS loopをまたいで同じrunを追えるよう、軽量なreceiptを持ちます。v0.2.9では、このreceiptで「今どの操作が許可されているか」まで機械的に追えるようになりました。
 
 ```bash
 mandatemarshal run ensure /path/to/project
 mandatemarshal run advance <run-id> parent-verified
-mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-handle>
-mandatemarshal run advance <run-id> review-verdict --verdict PASS
-mandatemarshal run advance <run-id> run-completed
-mandatemarshal run show <run-id>
+mandatemarshal run advance <run-id> reviewer-started --thread <reviewer-handle> --review-kind release-readiness
+mandatemarshal run advance <run-id> review-verdict --verdict PASS --grant staging-deploy --grant production-deploy
+mandatemarshal run authority <run-id>
+mandatemarshal run reconcile <run-id> --ref refs/tags/v0.2.9
+mandatemarshal run consume <run-id> --scope staging-deploy
+mandatemarshal run revoke <run-id> --scope production-deploy
 ```
+
+`review-kind`とgrant名はproject側で決める短いslugです。MandateMarshal本体は`deploy`や`publish`、`smoke`といった言葉の意味を決めません。grantの状態は`current / historical / consumed / revoked`の4つです。candidateが変わったりruntimeが更新されたりすると、まだ有効だったgrantは自動で`historical`になります。同じscopeへ新しいPASSが出た場合も、古いgrantだけが履歴へ移ります。
+
+`run reconcile`はREADMEやhandoff文書を信用して現在地を決めるコマンドではありません。repositoryをもう一度観測し、candidateとGit HEADを取り直します。必要なら`refs/tags/...`のような完全修飾refも照合できます。ただしtagが存在するだけで権限が生えることはありません。人間向け文書と機械状態が食い違った場合は、receiptと現在のrepository観測が正本です。
 
 永続receiptは次に保存されます。
 
@@ -286,7 +292,7 @@ mandatemarshal run show <run-id>
 ~/.mandatemarshal/receipts/
 ```
 
-保存するのは、project identity、現在候補、Git HEAD、Parent verification、review bindingなど、再開と権限確認に必要な小さい状態だけです。
+保存するのは、project identity、現在候補、Git HEAD、Parent verification、review binding、grantの状態など、再開と権限確認に必要な小さい情報だけです。
 
 Git repositoryではcandidate identityにHEAD、porcelain state、HEAD相対binary diff、Gitが列挙したnon-ignored untracked bytesを使います。巨大なignored artifact treeや変更されていないtracked fileを毎回読み直しません。
 

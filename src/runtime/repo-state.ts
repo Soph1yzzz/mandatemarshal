@@ -107,6 +107,50 @@ export interface RepositoryCandidateObservation {
   state: RepositoryState;
 }
 
+export interface GitRefObservation {
+  ref: string;
+  exists: boolean;
+  objectId?: string;
+  objectType?: string;
+  peeledCommit?: string;
+  annotatedTag: boolean;
+}
+
+export async function observeGitRefs(root: string, refs: readonly string[]): Promise<GitRefObservation[]> {
+  const cwd = resolve(root);
+  const observations: GitRefObservation[] = [];
+  for (const ref of refs) {
+    await assertExactGitRef(cwd, ref);
+    const exact = await run(cwd, ["git", "show-ref", "--verify", "--hash", ref]);
+    if (exact.code === 1) {
+      observations.push({ ref, exists: false, annotatedTag: false });
+      continue;
+    }
+    if (exact.code !== 0) throw new Error(`GIT_REF_OBSERVATION_FAILED:${ref}:${exact.stderr.trim()}`);
+
+    const objectId = exact.stdout.trim();
+    const type = await run(cwd, ["git", "cat-file", "-t", objectId]);
+    if (type.code !== 0) throw new Error(`GIT_REF_OBJECT_TYPE_FAILED:${ref}:${type.stderr.trim()}`);
+    const objectType = type.stdout.trim();
+    const peeled = await run(cwd, ["git", "rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`]);
+    observations.push({
+      ref,
+      exists: true,
+      objectId,
+      objectType,
+      ...(peeled.code === 0 ? { peeledCommit: peeled.stdout.trim() } : {}),
+      annotatedTag: objectType === "tag",
+    });
+  }
+  return observations;
+}
+
+async function assertExactGitRef(cwd: string, ref: string): Promise<void> {
+  if (!ref.startsWith("refs/") || /[\u0000\r\n]/u.test(ref)) throw new Error(`GIT_REF_INVALID:${ref}`);
+  const checked = await run(cwd, ["git", "check-ref-format", ref]);
+  if (checked.code !== 0) throw new Error(`GIT_REF_INVALID:${ref}`);
+}
+
 export async function observeRepositoryCandidate(root: string): Promise<RepositoryCandidateObservation> {
   const state = await captureRepositoryState(root);
   if (!state.available) {
