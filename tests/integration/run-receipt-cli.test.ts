@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -16,6 +16,12 @@ async function runCli(args: string[]): Promise<{ code: number; stdout: string; s
     new Response(proc.stderr).text(),
   ]);
   return { code, stdout, stderr };
+}
+
+async function runCommand(cwd: string, args: string[]): Promise<void> {
+  const proc = Bun.spawn(args, { cwd, stdout: "pipe", stderr: "pipe" });
+  const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
+  if (code !== 0) throw new Error(`${args.join(" ")} failed: ${stderr}`);
 }
 
 test("run receipt CLI starts, records, lists, shows and traces a skill-contract run", async () => {
@@ -77,11 +83,22 @@ test("run receipt CLI starts, records, lists, shows and traces a skill-contract 
 
 test("run authority CLI creates, inspects, reconciles, consumes and revokes generic grants", async () => {
   const base = await mkdtemp(join(tmpdir(), "mandatemarshal-authority-cli-"));
+  const project = join(base, "project");
   const receiptRoot = join(base, "receipts");
   const traceRoot = join(base, "traces");
   const roots = ["--receipt-root", receiptRoot, "--trace-root", traceRoot];
+  const tagRef = "refs/tags/authority-test";
   try {
-    const started = await runCli(["run", "start", process.cwd(), ...roots]);
+    await mkdir(project);
+    await runCommand(project, ["git", "init"]);
+    await runCommand(project, ["git", "config", "user.email", "mandatemarshal-test@example.invalid"]);
+    await runCommand(project, ["git", "config", "user.name", "MandateMarshal Test"]);
+    await writeFile(join(project, "tracked.txt"), "base\n", "utf8");
+    await runCommand(project, ["git", "add", "tracked.txt"]);
+    await runCommand(project, ["git", "commit", "-m", "base"]);
+    await runCommand(project, ["git", "tag", "-a", "authority-test", "-m", "authority fixture"]);
+
+    const started = await runCli(["run", "start", project, ...roots]);
     expect(started.code).toBe(0);
     const runId = JSON.parse(started.stdout).runId as string;
     expect((await runCli(["run", "advance", runId, "parent-verified", ...roots])).code).toBe(0);
@@ -96,10 +113,10 @@ test("run authority CLI creates, inspects, reconciles, consumes and revokes gene
     expect(authority.code).toBe(0);
     expect(JSON.parse(authority.stdout).current.map((grant: { scope: string }) => grant.scope).sort()).toEqual(["deploy", "publish"]);
 
-    const reconciled = await runCli(["run", "reconcile", runId, "--ref", "refs/tags/v0.2.8", ...roots]);
+    const reconciled = await runCli(["run", "reconcile", runId, "--ref", tagRef, ...roots]);
     expect(reconciled.code).toBe(0);
     const reconcilePayload = JSON.parse(reconciled.stdout);
-    expect(reconcilePayload.refs[0]).toEqual(expect.objectContaining({ ref: "refs/tags/v0.2.8", exists: true, annotatedTag: true }));
+    expect(reconcilePayload.refs[0]).toEqual(expect.objectContaining({ ref: tagRef, exists: true, annotatedTag: true }));
     expect(reconcilePayload.authority.current).toHaveLength(2);
 
     expect((await runCli(["run", "consume", runId, "--scope", "publish", ...roots])).code).toBe(0);
@@ -109,10 +126,10 @@ test("run authority CLI creates, inspects, reconciles, consumes and revokes gene
     expect(finalAuthority.consumed[0].scope).toBe("publish");
     expect(finalAuthority.revoked[0].scope).toBe("deploy");
 
-    const fuzzyRef = await runCli(["run", "reconcile", runId, "--ref", "v0.2.8", ...roots]);
+    const fuzzyRef = await runCli(["run", "reconcile", runId, "--ref", "authority-test", ...roots]);
     expect(fuzzyRef.code).not.toBe(0);
     expect(fuzzyRef.stderr).toContain("GIT_REF_INVALID");
   } finally {
-    await rm(base, { recursive: true, force: true });
+    await rm(base, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 });
   }
 });
