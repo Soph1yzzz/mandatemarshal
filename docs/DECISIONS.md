@@ -274,3 +274,25 @@ Routine and complex Implementers remain separate worker policy: Luna/Max and Ter
 ### D-050 — Reconciliation recomputes machine facts instead of trusting summaries
 
 **Decision:** `run reconcile` re-observes the repository candidate and Git HEAD before reporting authority. Candidate drift is persisted through the existing candidate-observation path so stale Parent/PASS/grant bindings lose current authority mechanically. Callers may additionally request exact fully-qualified Git refs for observation; MandateMarshal validates ref syntax and uses exact Git plumbing rather than fuzzy name resolution. Ref observation is evidence only: the presence of a tag or branch does not itself manufacture a review grant or Owner authority.
+
+## v0.3.0 Two-Model Luna-First Routing — 2026-09-23
+
+### D-051 — Parent and Fresh Reviewer use fixed GPT-6 Sol / High
+
+**Decision:** The current Codex authority route is fixed to `gpt-6-sol/high` for both the user-facing Parent requirement and Fresh Reviewer. Fresh Reviewer remains fresh-context and read-only. Astra is removed from active routing because MandateMarshal needs a Parent model that reliably delegates within explicit authority boundaries; this is an orchestrator-role fit decision, not a claim that Astra is generally weak.
+
+### D-052 — Every settled implementation starts on GPT-6 Luna / Max
+
+**Decision:** `routine-implementer` maps to `gpt-6-luna/max` and is the mandatory first implementation lane for every settled packet. Apparent complexity, security sensitivity, breadth, or context size does not justify starting on Sol. The prior predictive Luna/Terra split is retired; Terra is not an active v0.3.0 route.
+
+### D-053 — `complex-implementer` is an observed-blocker escalation lane
+
+**Decision:** The `complex-implementer` semantic name remains for wire compatibility, but in v0.3.0 it means only explicit `gpt-6-sol/high` implementation escalation after the Luna worker reports a concrete blocker and Parent records a reasoned `routine-implementer -> complex-implementer` reclassification. A Luna launch/capability failure is not such a blocker and must fail loudly rather than silently substituting Sol.
+
+### D-054 — Release pin verification follows the released routing generation
+
+**Decision:** Pin verification is version-aware. Releases v0.2.8-v0.2.9 continue to require and hash their historical Astra authority profiles plus explicit Sol compatibility profile. Releases v0.3.0 and later require and hash only the active three-profile Luna/Sol set. Historical release verification remains reproducible without keeping obsolete routes active in current policy.
+
+### D-055 — v0.3 installs from a clean runtime plugin root
+
+**Decision:** The active v0.3+ marketplace/package source is `plugins/mandatemarshal-runtime/`, containing the canonical Skill and exactly the three active Luna/Sol agent profiles. The previous `plugins/mandatemarshal/` tree may remain in Git as inactive release-history/fixture material, but it is not referenced by the current marketplace, root Skill path, npm package allowlist, or v0.3 pin provenance. Its Skill entry is frontmatter-free so it cannot compete with the active runtime Skill. This preserves historical evidence without shipping obsolete Astra/GPT-5.6 profiles in the v0.3 install/cache surface.

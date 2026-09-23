@@ -6,12 +6,14 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 const REPOSITORY = "Soph1yzzz/mandatemarshal";
 const MARKETPLACE = "mandatemarshal";
 const PLUGIN_SELECTOR = "mandatemarshal@mandatemarshal";
-const PUBLISHED_SKILL_PATH = "plugins/mandatemarshal/skills/mandatemarshal/SKILL.md";
+const LEGACY_PLUGIN_SOURCE_PATH = "plugins/mandatemarshal";
+const TWO_MODEL_PLUGIN_SOURCE_PATH = "plugins/mandatemarshal-runtime";
 const LEGACY_PUBLISHED_SKILL_PATH = "skills/orchestration/SKILL.md";
 const PIN_STATE_SCHEMA = 2 as const;
 const PIN_EXEC_GUARD = "MANDATEMARSHAL_PINNED_EXEC";
 const AUTHORITY_AGENT_INTRO_VERSION = "0.2.8";
-const AUTHORITY_AGENT_FILES = [
+const TWO_MODEL_AGENT_INTRO_VERSION = "0.3.0";
+const LEGACY_AUTHORITY_AGENT_FILES = [
   "mandatemarshal_fresh_reviewer.toml",
   "mandatemarshal_fresh_reviewer_astra_low.toml",
   "mandatemarshal_fresh_reviewer_astra_medium.toml",
@@ -20,6 +22,11 @@ const AUTHORITY_AGENT_FILES = [
   "mandatemarshal_fresh_reviewer_astra_xhigh.toml",
   "mandatemarshal_fresh_reviewer_astra_max.toml",
   "mandatemarshal_fresh_reviewer_sol_compat.toml",
+] as const;
+const TWO_MODEL_AGENT_FILES = [
+  "mandatemarshal_routine_implementer.toml",
+  "mandatemarshal_complex_implementer.toml",
+  "mandatemarshal_fresh_reviewer.toml",
 ] as const;
 
 export interface MandateMarshalPinRecord {
@@ -385,7 +392,7 @@ async function verifyPublishedTarget(
   }
 
   const skillResponse = await fetchImpl(
-    `https://raw.githubusercontent.com/${REPOSITORY}/${encodeURIComponent(ref)}/${PUBLISHED_SKILL_PATH}`,
+    `https://raw.githubusercontent.com/${REPOSITORY}/${encodeURIComponent(ref)}/${publishedSkillPathForVersion(version)}`,
     { headers: { "User-Agent": "MandateMarshal" } },
   );
   if (!skillResponse.ok) throw new Error(`PIN_TARGET_SKILL_MISSING:${ref}`);
@@ -395,11 +402,12 @@ async function verifyPublishedTarget(
     throw new Error(`PIN_TARGET_VERSION_MISMATCH: package target ${version}, Skill ${skillVersion ?? "missing"}`);
   }
   const agentHashes = new Map<string, string>();
-  if (requiresAuthorityProfiles(version)) {
+  const authorityAgentFiles = authorityAgentFilesForVersion(version);
+  if (authorityAgentFiles.length > 0) {
     await Promise.all(
-      AUTHORITY_AGENT_FILES.map(async (file) => {
+      authorityAgentFiles.map(async (file) => {
         const response = await fetchImpl(
-          `https://raw.githubusercontent.com/${REPOSITORY}/${encodeURIComponent(ref)}/plugins/mandatemarshal/agents/${file}`,
+          `https://raw.githubusercontent.com/${REPOSITORY}/${encodeURIComponent(ref)}/${publishedPluginSourcePathForVersion(version)}/agents/${file}`,
           { headers: { "User-Agent": "MandateMarshal" } },
         );
         if (!response.ok) throw new Error(`PIN_TARGET_AUTHORITY_PROFILE_MISSING:${ref}:${file}`);
@@ -421,8 +429,28 @@ function isVersion(value: unknown): value is string {
 }
 
 function requiresAuthorityProfiles(version: string): boolean {
+  return authorityAgentFilesForVersion(version).length > 0;
+}
+
+function authorityAgentFilesForVersion(version: string): readonly string[] {
+  if (versionAtLeast(version, TWO_MODEL_AGENT_INTRO_VERSION)) return TWO_MODEL_AGENT_FILES;
+  if (versionAtLeast(version, AUTHORITY_AGENT_INTRO_VERSION)) return LEGACY_AUTHORITY_AGENT_FILES;
+  return [];
+}
+
+function publishedPluginSourcePathForVersion(version: string): string {
+  return versionAtLeast(version, TWO_MODEL_AGENT_INTRO_VERSION)
+    ? TWO_MODEL_PLUGIN_SOURCE_PATH
+    : LEGACY_PLUGIN_SOURCE_PATH;
+}
+
+function publishedSkillPathForVersion(version: string): string {
+  return `${publishedPluginSourcePathForVersion(version)}/skills/mandatemarshal/SKILL.md`;
+}
+
+function versionAtLeast(version: string, minimumVersion: string): boolean {
   const stable = version.split("-", 1)[0]!;
-  const minimum = AUTHORITY_AGENT_INTRO_VERSION.split("-", 1)[0]!;
+  const minimum = minimumVersion.split("-", 1)[0]!;
   const currentParts = stable.split(".").map(Number);
   const minimumParts = minimum.split(".").map(Number);
   for (let index = 0; index < 3; index += 1) {
@@ -477,8 +505,9 @@ async function verifyPluginCache(
   if (skillSha256(skillContent) !== publishedSkillHash) {
     throw new Error(`PIN_CACHE_SKILL_HASH_MISMATCH:${skillPath}`);
   }
-  if (requiresAuthorityProfiles(version)) {
-    for (const file of AUTHORITY_AGENT_FILES) {
+  const authorityAgentFiles = authorityAgentFilesForVersion(version);
+  if (authorityAgentFiles.length > 0) {
+    for (const file of authorityAgentFiles) {
       const expectedHash = publishedAgentHashes.get(file);
       if (!expectedHash) throw new Error(`PIN_TARGET_AUTHORITY_PROFILE_HASH_MISSING:${version}:${file}`);
       const profilePath = join(pluginCacheSource, "agents", file);
@@ -493,7 +522,7 @@ async function verifyPluginCache(
         throw new Error(`PIN_CACHE_AUTHORITY_PROFILE_HASH_MISMATCH:${profilePath}`);
       }
     }
-    return authorityProfilesAggregateHash(publishedAgentHashes);
+    return authorityProfilesAggregateHash(publishedAgentHashes, authorityAgentFiles);
   }
   return undefined;
 }
@@ -515,10 +544,11 @@ async function inspectPluginCache(
     const manifest = JSON.parse(manifestContent) as { version?: unknown };
     let authorityProfilesReady: boolean | null = null;
     let authorityProfilesHash: string | null = null;
-    if (requiresAuthorityProfiles(version)) {
+    const authorityAgentFiles = authorityAgentFilesForVersion(version);
+    if (authorityAgentFiles.length > 0) {
       authorityProfilesReady = true;
       const hashes = new Map<string, string>();
-      for (const file of AUTHORITY_AGENT_FILES) {
+      for (const file of authorityAgentFiles) {
         const path = join(pluginCacheSource, "agents", file);
         try {
           hashes.set(file, skillSha256(await readFile(path, "utf8")));
@@ -530,7 +560,7 @@ async function inspectPluginCache(
           throw error;
         }
       }
-      if (authorityProfilesReady) authorityProfilesHash = authorityProfilesAggregateHash(hashes);
+      if (authorityProfilesReady) authorityProfilesHash = authorityProfilesAggregateHash(hashes, authorityAgentFiles);
     }
     return {
       pluginVersion: isVersion(manifest.version) ? manifest.version : null,
@@ -574,7 +604,7 @@ async function inspectLegacySkillForCleanup(
   });
   if (!release.ok) throw new Error(`LEGACY_SKILL_CONFLICT:${skillPath}:unreleased-version-${version}`);
   let response = await fetchImpl(
-    `https://raw.githubusercontent.com/${REPOSITORY}/v${version}/${PUBLISHED_SKILL_PATH}`,
+    `https://raw.githubusercontent.com/${REPOSITORY}/v${version}/${publishedSkillPathForVersion(version)}`,
     { headers: { "User-Agent": "MandateMarshal" } },
   );
   if (!response.ok) {
@@ -595,9 +625,9 @@ function skillSha256(content: string): string {
   return createHash("sha256").update(content.replace(/\r\n?/gu, "\n")).digest("hex");
 }
 
-function authorityProfilesAggregateHash(hashes: ReadonlyMap<string, string>): string {
+function authorityProfilesAggregateHash(hashes: ReadonlyMap<string, string>, files: readonly string[]): string {
   const hash = createHash("sha256");
-  for (const file of [...AUTHORITY_AGENT_FILES].sort()) {
+  for (const file of [...files].sort()) {
     const digest = hashes.get(file);
     if (!digest) throw new Error(`AUTHORITY_PROFILE_HASH_MISSING:${file}`);
     hash.update(file);

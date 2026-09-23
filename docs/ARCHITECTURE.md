@@ -56,13 +56,13 @@ Host-specific mapping and transport:
 
 Provider capability must be reported truthfully. Requested capability and observed capability are distinct.
 
-### Codex Frontier Authority Profile — v0.2.8
+### Codex two-model routing — v0.3.0
 
-Codex keeps authority and implementation routing separate. The user-facing Parent is a root-session requirement on `gpt-6-astra` with one Owner-selected authority effort; Fresh Reviewer uses `gpt-6-astra` with the exact same effort but a new read-only context. Routine/complex Implementers remain Luna/Max and Terra/High. Sol is available only through explicit compatibility configuration.
+Codex keeps authority and implementation routing separate. The user-facing Parent is a root-session requirement on `gpt-6-sol/high`; Fresh Reviewer uses the same model/effort in a fresh read-only context. Default implementation is `gpt-6-luna/max`. The legacy `complex-implementer` lane is retained only as explicit `gpt-6-sol/high` escalation after an observed Luna blocker and Parent-recorded reclassification.
 
 The Parent is not recursively spawned by the adapter. `CodexAdapter.parentAuthorityRequirement()` exposes the required root selection, while `assertParentAuthoritySelection()` lets integrations fail closed when root-session model/effort observation is available. The reviewer route is directly enforceable by adapter mapping. `buildCodexExecArgs()` is the pure constructor used by `CodexCliDriver` and no-launch integration tests so exact model/effort/sandbox argv can be verified without executing Codex.
 
-Static plugin/custom-agent operation cannot safely assume a child inherits the Parent's effort, so the package includes explicit Astra reviewer profiles for `low`, `medium`, `high`, `xhigh`, and `max`. An unavailable exact value is a capability failure; unknown labels are rejected rather than normalized, and no supported value is reduced or substituted silently.
+Predictive complexity no longer selects a stronger implementation model. Every settled packet starts on Luna. A Luna launch/capability failure is surfaced as a capability failure and does not authorize Sol. Astra, Terra, and GPT-5.6 remain part of release history only, not active v0.3.0 routing.
 
 ## State machine
 
@@ -114,7 +114,7 @@ routine IMPLEMENTING
  -> complex IMPLEMENTING
 ```
 
-This path is intentionally different from model/capability failure. If the configured Luna/Max lane cannot launch, the adapter surfaces the capability failure and does not substitute Terra/High.
+This path is intentionally different from model/capability failure. If the configured Luna/Max lane cannot launch, the adapter surfaces the capability failure and does not substitute Sol/High. The Sol implementation lane requires an actual Luna blocker plus explicit Parent reclassification.
 
 ## Durable runtime boundary
 

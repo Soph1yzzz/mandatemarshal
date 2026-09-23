@@ -1,6 +1,6 @@
 # MandateMarshal Repository Contract
 
-This file is normative for this repository. The archived R2 specification bundle remains design provenance; this file plus `docs/DECISIONS.md` define the implemented v0.2 contract.
+This file is normative for this repository. The archived R2 specification bundle remains design provenance; this file plus `docs/DECISIONS.md` define the implemented v0.3 contract.
 
 ## Mission
 
@@ -32,9 +32,9 @@ Build a portable, authority-aware coding-agent orchestration system where agents
 22. Provider session resumability is not equivalent to side-effect-safe retry. Incomplete provider sessions remain reconciliation-required unless completion or non-execution can be observed.
 23. When the packaged CLI is available, Skill-driven coding objectives use one canonical run receipt across the full FIX/PASS loop; do not invent run IDs or silently fork a continuation into a second active receipt.
 24. Recovery-critical receipt state is persistent under `~/.mandatemarshal/`; detailed developer trace is temporary, uses the OS temp directory, and has a fixed 30-day TTL in v0.2.5.
-25. `plugins/mandatemarshal/skills/mandatemarshal/` is the single committed runtime Skill source. `skills/orchestration/` is migration-pointer material only and must not regain Skill frontmatter or a duplicate runtime copy.
+25. `plugins/mandatemarshal-runtime/skills/mandatemarshal/` is the single active committed runtime Skill source for v0.3+. `skills/orchestration/` and the legacy `plugins/mandatemarshal/skills/mandatemarshal/SKILL.md` are frontmatter-free migration/history pointers only and must not become competing runtime Skills.
 26. Implementers do not create Git commits, tags, or pushes unless the implementation packet explicitly delegates that exact operation; Parent owns semantic commit/checkpoint decisions by default.
-27. Current Codex authority mapping uses GPT-6 Astra for the user-facing Parent and Fresh Reviewer with the exact Owner-selected authority effort; Fresh Reviewer mirrors that effort in fresh read-only context. Routine/complex implementers remain Luna/Max and Terra/High. Sol is explicit compatibility only, never silent fallback.
+27. Current Codex v0.3 mapping is fixed: Parent and Fresh Reviewer use GPT-6 Sol / High; settled implementation always starts on GPT-6 Luna / Max; `complex-implementer` is the legacy semantic name for explicit GPT-6 Sol / High escalation only after an observed Luna blocker and Parent-recorded reclassification. Astra, Terra, and GPT-5.6 are not active routes, and no silent fallback is permitted.
 
 ## Approved R2 implementation clarifications
 

@@ -6,7 +6,7 @@ async function exampleConfig(): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile("config.example.json", "utf8")) as Record<string, unknown>;
 }
 
-test("example config satisfies the compliant v0.1 runtime contract", async () => {
+test("example config satisfies the v0.3 Sol/Luna runtime contract", async () => {
   const config = await exampleConfig();
   expect(validateConfig(config)).toEqual({ valid: true, errors: [], warnings: [] });
 });
@@ -30,29 +30,31 @@ test("config requires complete semantic role mappings", async () => {
   expect(result.errors).toContain("roles.parent is required");
 });
 
-test("authority config binds Parent and Fresh Reviewer to the same Astra effort", async () => {
+test("authority is fixed to GPT-6 Sol/High", async () => {
+  const config = await exampleConfig();
+  config.authority = { model: "gpt-6-astra", effort: "high", mirrorFreshReviewer: true };
+  const result = validateConfig(config);
+  expect(result.valid).toBeFalse();
+  expect(result.errors).toContain("authority.model must equal gpt-6-sol");
+});
+
+test("authority effort is fixed to high", async () => {
+  const config = await exampleConfig();
+  config.authority = { model: "gpt-6-sol", effort: "max", mirrorFreshReviewer: true };
+  const result = validateConfig(config);
+  expect(result.valid).toBeFalse();
+  expect(result.errors).toContain("authority.effort must equal high");
+});
+
+test("implementation mappings reject old 5.6 and Terra routes", async () => {
   const config = await exampleConfig();
   const roles = config.roles as Record<string, unknown>;
-  roles.freshReviewer = { nativeRole: "fresh-reviewer", model: "gpt-6-astra", effort: "high" };
+  roles.routineImplementer = { nativeRole: "routine-implementer", model: "gpt-5.6-luna", effort: "max" };
+  roles.complexImplementer = { nativeRole: "complex-implementer", model: "gpt-5.6-terra", effort: "high" };
   const result = validateConfig(config);
   expect(result.valid).toBeFalse();
-  expect(result.errors).toContain("roles.freshReviewer must mirror authority model/effort");
-});
-
-test("unsupported Ultra label is rejected instead of being treated as a runtime effort", async () => {
-  const config = await exampleConfig();
-  config.authority = { model: "gpt-6-astra", effort: "ultra", mirrorFreshReviewer: true };
-  const result = validateConfig(config);
-  expect(result.valid).toBeFalse();
-  expect(result.errors).toContain("authority.effort must be one of low|medium|high|xhigh|max");
-});
-
-test("authority config rejects unknown effort instead of silently substituting", async () => {
-  const config = await exampleConfig();
-  config.authority = { model: "gpt-6-astra", effort: "turbo", mirrorFreshReviewer: true };
-  const result = validateConfig(config);
-  expect(result.valid).toBeFalse();
-  expect(result.errors).toContain("authority.effort must be one of low|medium|high|xhigh|max");
+  expect(result.errors).toContain("roles.routineImplementer.model must equal gpt-6-luna");
+  expect(result.errors).toContain("roles.complexImplementer.model must equal gpt-6-sol");
 });
 
 test("owner contracts require owner level and non-empty text", async () => {

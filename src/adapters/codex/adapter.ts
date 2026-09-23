@@ -14,13 +14,7 @@ import type {
 } from "../../core/types";
 import {
   DEFAULT_CODEX_ROLE_MAPPING,
-  codexRoleMappingForAuthorityEffort,
-  freshReviewerRoleForProfile,
   implementationRoleForLane,
-  isCodexAuthorityEffort,
-  isCodexFreshReviewerProfileId,
-  type CodexAuthorityEffort,
-  type CodexFreshReviewerProfileId,
   type CodexNativeRoleConfig,
   type CodexRoleMapping,
 } from "./role-mapping";
@@ -59,70 +53,14 @@ export interface CodexDriver {
   observeDurableOperation?(operation: DurableOperationProbe): Promise<DurableOperationProbeResult>;
 }
 
-export interface CodexAdapterConfig {
-  /**
-   * Frontier authority effort selected by the Owner for both the Parent session
-   * requirement and the fresh Astra reviewer. The adapter never silently changes it.
-   */
-  authorityEffort?: CodexAuthorityEffort;
-  /** Explicit reviewer-generation compatibility override. Do not combine with authorityEffort. */
-  freshReviewerProfile?: CodexFreshReviewerProfileId;
-  roles?: Partial<{
-    routineImplementer: CodexNativeRoleConfig;
-    complexImplementer: CodexNativeRoleConfig;
-    freshReviewer: CodexNativeRoleConfig;
-  }>;
-}
-
-function mappingFromConfig(config: CodexAdapterConfig): CodexRoleMapping {
-  if (config.authorityEffort !== undefined && !isCodexAuthorityEffort(config.authorityEffort)) {
-    throw new CodexCapabilityError(
-      "INVALID_AUTHORITY_EFFORT",
-      `Unsupported authority effort: ${String(config.authorityEffort)}`,
-    );
-  }
-  if (config.freshReviewerProfile !== undefined && !isCodexFreshReviewerProfileId(config.freshReviewerProfile)) {
-    throw new CodexCapabilityError(
-      "INVALID_REVIEWER_PROFILE",
-      `Unsupported Fresh Reviewer profile: ${String(config.freshReviewerProfile)}`,
-    );
-  }
-  if (config.authorityEffort && (config.freshReviewerProfile || config.roles?.freshReviewer)) {
-    throw new CodexCapabilityError(
-      "AMBIGUOUS_AUTHORITY_MAPPING",
-      "authorityEffort already binds the Parent and Fresh Reviewer; do not combine it with a reviewer override",
-    );
-  }
-  if (config.freshReviewerProfile && config.roles?.freshReviewer) {
-    throw new CodexCapabilityError(
-      "AMBIGUOUS_REVIEWER_MAPPING",
-      "Configure either freshReviewerProfile or roles.freshReviewer, not both",
-    );
-  }
-  const base = config.authorityEffort
-    ? codexRoleMappingForAuthorityEffort(config.authorityEffort)
-    : DEFAULT_CODEX_ROLE_MAPPING;
-  return {
-    ...base,
-    routineImplementer: config.roles?.routineImplementer ?? base.routineImplementer,
-    complexImplementer: config.roles?.complexImplementer ?? base.complexImplementer,
-    freshReviewer:
-      config.roles?.freshReviewer ??
-      (config.freshReviewerProfile ? freshReviewerRoleForProfile(config.freshReviewerProfile) : base.freshReviewer),
-  };
-}
-
 export class CodexAdapter implements HostAdapter {
   readonly id = "codex";
   private readonly mapping: CodexRoleMapping;
   private readonly workerRuns = new Map<string, CodexDriverRun<ImplementationReport>>();
   private readonly reviewerRuns = new Map<string, CodexDriverRun<ReviewResult>>();
 
-  constructor(
-    private readonly driver: CodexDriver,
-    config: CodexAdapterConfig = {},
-  ) {
-    this.mapping = mappingFromConfig(config);
+  constructor(private readonly driver: CodexDriver) {
+    this.mapping = DEFAULT_CODEX_ROLE_MAPPING;
   }
 
   capabilities(): Promise<HostCapabilities> {

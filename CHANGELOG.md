@@ -4,6 +4,22 @@ All notable changes to MandateMarshal are documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-23
+
+### Changed
+
+- Replaced the active Codex routing policy with a two-model GPT-6 layout: Parent and Fresh Reviewer use `gpt-6-sol/high`, while every settled implementation starts on `gpt-6-luna/max`.
+- Retained the `complex-implementer` semantic lane for wire compatibility, but changed its meaning to explicit `gpt-6-sol/high` escalation only after Luna reports a concrete blocker and Parent records a `routine -> complex` reclassification.
+- Removed Astra, Terra, GPT-5.6, and the old Sol compatibility selector from current routing/config/install policy. Historical Decision Log and changelog records remain intact.
+- Simplified bundled/manual Codex agent installation to the three active v0.3.0 profiles: routine implementer, escalation implementer, and fresh reviewer. The active marketplace/package source moved to the clean `plugins/mandatemarshal-runtime/` root so legacy profile fixtures remain outside the v0.3 install/cache surface.
+- Made release-pin agent verification version-aware: v0.2.8-v0.2.9 continue to validate their historical Astra/Sol-compat profile set, while v0.3.0+ validates the active Luna/Sol set.
+
+### Security
+
+- Luna launch or exact-capability failure no longer qualifies as escalation; no adapter path silently substitutes Sol.
+- Predictive complexity cannot pre-route work to Sol. Sol implementation requires observed Luna blockage plus an explicit Parent reclassification event.
+- Fresh Reviewer remains exact `gpt-6-sol/high`, fresh-context, and read-only by default, with candidate mutation still invalidating PASS.
+
 ## [0.2.9] - 2026-09-13
 
 ### Added

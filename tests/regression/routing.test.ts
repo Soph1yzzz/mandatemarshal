@@ -1,18 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { classifyImplementation, reclassifyBlockedRoutine } from "../../src/orchestrator/routing";
 import {
-  CODEX_FRONTIER_AUTHORITY_MODEL,
-  DEFAULT_CODEX_AUTHORITY_EFFORT,
-  authorityReviewerAgentNameForEffort,
+  CODEX_AUTHORITY_EFFORT,
+  CODEX_AUTHORITY_MODEL,
   DEFAULT_CODEX_ROLE_MAPPING,
-  codexRoleMappingForAuthorityEffort,
-  freshReviewerProfileForAuthorityEffort,
-  freshReviewerRoleForProfile,
   routingEvidenceForLane,
 } from "../../src/adapters/codex/role-mapping";
 
- describe("routing regressions", () => {
-  test("settled routine task maps to Luna/Max", () => {
+describe("routing regressions", () => {
+  test("settled implementation starts on GPT-6 Luna/Max", () => {
     const decision = classifyImplementation({
       packetSettled: true,
       ownerDecisionUnresolved: false,
@@ -21,54 +17,40 @@ import {
     expect(decision).toEqual({
       kind: "route",
       lane: "routine-implementer",
-      reason: "settled bounded implementation with no material complexity trigger",
+      reason: "Luna-first policy: settled bounded implementation starts on the default lane",
     });
     const evidence = routingEvidenceForLane(DEFAULT_CODEX_ROLE_MAPPING, "routine-implementer", "test");
-    expect(evidence.requestedModel).toBe("gpt-5.6-luna");
+    expect(evidence.requestedModel).toBe("gpt-6-luna");
     expect(evidence.requestedEffort).toBe("max");
   });
 
-  test("material complexity maps to Terra/High", () => {
+  test("only an observed blocked-Luna trigger routes to the Sol escalation lane", () => {
     const decision = classifyImplementation({
       packetSettled: true,
       ownerDecisionUnresolved: false,
-      materialTriggers: ["public-interface-risk"],
+      materialTriggers: ["routine-worker-blocked"],
     });
-    expect(decision.kind).toBe("route");
-    if (decision.kind !== "route") throw new Error("unexpected hold");
-    expect(decision.lane).toBe("complex-implementer");
-    const evidence = routingEvidenceForLane(DEFAULT_CODEX_ROLE_MAPPING, decision.lane, decision.reason);
-    expect(evidence.requestedModel).toBe("gpt-5.6-terra");
+    expect(decision).toEqual({
+      kind: "route",
+      lane: "complex-implementer",
+      reason: "explicit escalation after the Luna implementation lane reported blocked",
+    });
+    const evidence = routingEvidenceForLane(DEFAULT_CODEX_ROLE_MAPPING, "complex-implementer", "test");
+    expect(evidence.requestedModel).toBe("gpt-6-sol");
     expect(evidence.requestedEffort).toBe("high");
   });
 
-  test("Astra authority effort is shared by Parent and Fresh Reviewer", () => {
-    expect(DEFAULT_CODEX_AUTHORITY_EFFORT).toBe("medium");
+  test("Parent and Fresh Reviewer are fixed to GPT-6 Sol/High", () => {
+    expect(CODEX_AUTHORITY_MODEL).toBe("gpt-6-sol");
+    expect(CODEX_AUTHORITY_EFFORT).toBe("high");
     expect(DEFAULT_CODEX_ROLE_MAPPING.parent).toEqual({
       nativeRole: "parent",
-      model: CODEX_FRONTIER_AUTHORITY_MODEL,
-      effort: "medium",
+      model: "gpt-6-sol",
+      effort: "high",
     });
     expect(DEFAULT_CODEX_ROLE_MAPPING.freshReviewer).toEqual({
       nativeRole: "fresh-reviewer",
-      model: CODEX_FRONTIER_AUTHORITY_MODEL,
-      effort: "medium",
-    });
-    for (const effort of ["low", "medium", "high", "xhigh", "max"] as const) {
-      const mapping = codexRoleMappingForAuthorityEffort(effort);
-      expect(mapping.parent.model).toBe("gpt-6-astra");
-      expect(mapping.parent.effort).toBe(effort);
-      expect(mapping.freshReviewer.model).toBe("gpt-6-astra");
-      expect(mapping.freshReviewer.effort).toBe(effort);
-      expect(freshReviewerRoleForProfile(freshReviewerProfileForAuthorityEffort(effort))).toEqual(mapping.freshReviewer);
-      expect(authorityReviewerAgentNameForEffort(effort)).toBe(`mandatemarshal_fresh_reviewer_astra_${effort}`);
-    }
-  });
-
-  test("Sol remains explicit compatibility only", () => {
-    expect(freshReviewerRoleForProfile("sol-high-compat")).toEqual({
-      nativeRole: "fresh-reviewer",
-      model: "gpt-5.6-sol",
+      model: "gpt-6-sol",
       effort: "high",
     });
   });

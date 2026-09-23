@@ -1,16 +1,6 @@
 import type { ImplementationLane } from "../core/types";
 
 export const COMPLEXITY_TRIGGERS = [
-  "architecture-ambiguity",
-  "broad-refactor-or-migration",
-  "concurrency",
-  "security-sensitive",
-  "difficult-debugging",
-  "non-trivial-algorithm",
-  "public-interface-risk",
-  "cross-subsystem-context",
-  "high-context",
-  "wide-blast-radius",
   "routine-worker-blocked",
 ] as const;
 
@@ -33,17 +23,17 @@ export function classifyImplementation(assessment: RoutingAssessment): RoutingDe
   if (!assessment.packetSettled) {
     return { kind: "hold", reason: "implementation packet is not settled" };
   }
-  if (assessment.materialTriggers.length > 0) {
+  if (assessment.materialTriggers.includes("routine-worker-blocked")) {
     return {
       kind: "route",
       lane: "complex-implementer",
-      reason: `material complexity: ${assessment.materialTriggers.join(", ")}`,
+      reason: "explicit escalation after the Luna implementation lane reported blocked",
     };
   }
   return {
     kind: "route",
     lane: "routine-implementer",
-    reason: "settled bounded implementation with no material complexity trigger",
+    reason: "Luna-first policy: settled bounded implementation starts on the default lane",
   };
 }
 

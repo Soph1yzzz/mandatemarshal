@@ -2,30 +2,30 @@
   "schemaVersion": 1,
   "host": "codex",
   "authority": {
-    "model": "gpt-6-astra",
-    "effort": "medium",
+    "model": "gpt-6-sol",
+    "effort": "high",
     "mirrorFreshReviewer": true
   },
   "roles": {
     "parent": {
       "nativeRole": "parent",
-      "model": "gpt-6-astra",
-      "effort": "medium"
+      "model": "gpt-6-sol",
+      "effort": "high"
     },
     "routineImplementer": {
       "nativeRole": "routine-implementer",
-      "model": "gpt-5.6-luna",
+      "model": "gpt-6-luna",
       "effort": "max"
     },
     "complexImplementer": {
       "nativeRole": "complex-implementer",
-      "model": "gpt-5.6-terra",
+      "model": "gpt-6-sol",
       "effort": "high"
     },
     "freshReviewer": {
       "nativeRole": "fresh-reviewer",
-      "model": "gpt-6-astra",
-      "effort": "medium"
+      "model": "gpt-6-sol",
+      "effort": "high"
     }
   },
   "review": {
@@ -40,7 +40,11 @@
     "forbiddenArtifacts": [
       {
         "id": "python-bytecode-forbidden",
-        "patterns": ["**/__pycache__/**", "**/*.pyc", "**/*.pyo"],
+        "patterns": [
+          "**/__pycache__/**",
+          "**/*.pyc",
+          "**/*.pyo"
+        ],
         "severity": "blocking",
         "enabled": false
       }
@@ -49,7 +53,9 @@
       {
         "id": "python-no-bytecode",
         "command": "python",
-        "requiredFlags": ["-B"],
+        "requiredFlags": [
+          "-B"
+        ],
         "enabled": false
       }
     ]
@@ -58,16 +64,6 @@
   "routing": {
     "defaultLane": "routine-implementer",
     "complexityTriggers": [
-      "architecture-ambiguity",
-      "broad-refactor-or-migration",
-      "concurrency",
-      "security-sensitive",
-      "difficult-debugging",
-      "non-trivial-algorithm",
-      "public-interface-risk",
-      "cross-subsystem-context",
-      "high-context",
-      "wide-blast-radius",
       "routine-worker-blocked"
     ],
     "allowSilentFallback": false

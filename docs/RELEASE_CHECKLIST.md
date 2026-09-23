@@ -1,68 +1,54 @@
-# MandateMarshal v0.2.9 Release Checklist
+# MandateMarshal v0.3.0 Release Checklist
 
-This checklist is the publication gate for MandateMarshal v0.2.9.
+This checklist is the publication gate for MandateMarshal v0.3.0.
 
 ## Scope
 
-v0.2.9 is a compatibility-preserving authority-state release. It does not change the v0.2.8 Astra/Luna/Terra routing policy. The release adds a generic machine-readable authority ledger to Skill-run receipts and a reconciliation path that recomputes repository facts instead of trusting handoff prose.
+v0.3.0 replaces the active Codex routing policy with a two-model GPT-6 layout:
 
-The release is intentionally limited to:
+- Parent: GPT-6 Sol / High;
+- Fresh Reviewer: GPT-6 Sol / High, fresh context, read-only;
+- default implementation: GPT-6 Luna / Max;
+- explicit blocked-Luna implementation escalation: GPT-6 Sol / High.
 
-- explicit review-purpose slugs;
-- generic PASS grant scopes with no project-specific vocabulary in core;
-- `current | historical | consumed | revoked` grant lifecycle;
-- candidate/runtime drift invalidation of current grants;
-- scope-specific supersession by newer PASS evidence;
-- explicit consume/revoke operations;
-- candidate/HEAD reconciliation plus exact fully-qualified Git-ref observation;
-- no authority creation from README, AGENTS, handoff documents, tags, or branches;
-- existing v0.2.8 model routing unchanged.
+The legacy `complex-implementer` semantic name remains for wire compatibility, but predictive complexity routing is removed. Every settled implementation starts on Luna. Sol implementation is allowed only after an actual Luna blocker and explicit Parent reclassification.
 
-## Authority-state behavior
+Historical Astra, Terra, and GPT-5.6 Decision Log / changelog entries remain historical evidence. They are not current routing policy.
 
-- [x] PASS grants bind to the exact current Parent-verified candidate.
-- [x] Grants require an explicit/current review kind.
-- [x] FIX/ESCALATE cannot create grants.
-- [x] Candidate mutation moves every current grant to `historical`.
-- [x] Compatible runtime upgrade moves every current grant to `historical`.
-- [x] A newer PASS supersedes only scopes it explicitly re-grants.
-- [x] `consume` and `revoke` require exactly one current matching scope.
-- [x] Historical/consumed/revoked grants do not silently become current again.
-- [x] Existing review flows with no review kind or grant remain compatible.
-- [x] Receipt validation fails closed on malformed, stale, duplicate-current, or inconsistent grant state.
+## Routing and configuration
 
-## Reconciliation and Git boundary
+- [x] Parent requirement is exactly `gpt-6-sol/high`.
+- [x] Fresh Reviewer is exactly `gpt-6-sol/high`, fresh-context, read-only.
+- [x] Routine Implementer is exactly `gpt-6-luna/max`.
+- [x] Complex Implementer is exactly `gpt-6-sol/high`.
+- [x] Settled packets always start on the routine/Luna lane.
+- [x] Only an observed Luna blocker can support explicit `routine -> complex` reclassification.
+- [x] Luna launch/capability failure does not silently fall back to Sol.
+- [x] Astra, Terra, GPT-5.6, and old Sol-compat selectors are absent from active routing/config/install surfaces.
 
-- [x] `run reconcile` re-observes candidate identity and Git HEAD before reporting authority.
-- [x] Candidate drift is persisted through the existing candidate-observation path.
-- [x] Optional Git refs must be fully-qualified `refs/...` values.
-- [x] Ref observation uses argv-based exact Git plumbing; no shell interpolation is introduced.
-- [x] Annotated tags report object type and peeled commit evidence.
-- [x] Ref presence is evidence only and never creates a grant.
-- [x] Human-facing prose is not a competing authority database.
+## Packaging and pin compatibility
 
-## CLI surface
+- [x] Manual Codex agent installer exposes only the three v0.3.0 active profiles.
+- [x] v0.3.0 package/plugin agent surface contains no obsolete active Astra or GPT-5.6 compatibility profiles.
+- [x] v0.3.0 pin verification requires exactly the active Luna/Sol profile set.
+- [x] v0.2.8-v0.2.9 pin verification still validates the historical Astra/Sol-compat profile set.
+- [x] Package, root plugin manifest, marketplace plugin manifest, and canonical Skill all report `0.3.0`.
 
-- [x] `run authority <run-id>` exposes the machine authority view.
-- [x] `run reconcile <run-id> [--ref refs/...]...` exposes reconciliation evidence.
-- [x] `run advance ... reviewer-started --review-kind <slug>` binds review purpose.
-- [x] `run advance ... review-verdict --verdict PASS --grant <slug>...` creates scoped grants.
-- [x] `run consume <run-id> --scope <slug>` records intentional use.
-- [x] `run revoke <run-id> --scope <slug>` records explicit withdrawal.
+## Documentation and history
 
-## Codex process prohibition for this release audit
-
-The requested audit must not start a Codex process. Do not run `codex`, `codex exec`, `codex plugin`, `codex --version`, or any helper that invokes the real Codex executable.
-
-- [x] Verification evidence contains no real Codex process launch.
-- [x] Existing no-launch adapter/pin tests remain green.
+- [x] README.md documents Luna-first two-model routing.
+- [x] README.ja.md documents the same policy in natural Japanese.
+- [x] docs/CODEX_SETUP.md and docs/ARCHITECTURE.md describe blocked-Luna-only Sol escalation.
+- [x] SECURITY.md documents no-silent-fallback and version-aware pin verification.
+- [x] docs/DECISIONS.md adds v0.3.0 decisions without rewriting historical v0.2.x decisions.
+- [x] CHANGELOG.md contains v0.3.0 dated 2026-09-23.
+- [x] AGENTS.md current mapping matches v0.3.0.
 
 ## Required deterministic verification
 
 Run from the audited checkout:
 
 ```bash
-bun install --frozen-lockfile
 bun run typecheck
 bun test
 bun audit
@@ -72,35 +58,32 @@ git diff --check
 npm pack --dry-run --json
 ```
 
-Also perform a bounded self Codex-security review without launching Codex. Review new slug/ref inputs, receipt validation, grant-state transitions, locking/concurrency, Git argv construction, package surface, secrets/local paths, dependency findings, and unexpected executable invocation surfaces.
+Use `bun install --frozen-lockfile` first only if dependencies are not already present; it must not change the lockfile.
 
-Required results before publication:
+Also perform a bounded self security review without launching a Codex model process. Check exact routing, stale profile exposure, version-pin backward compatibility, reviewer read-only policy, silent fallback paths, package contents, secrets/local paths, and dependency findings.
 
-- [x] Frozen dependency install succeeds without lockfile drift.
+## Verification results
+
+- [x] Frozen dependency state is usable without lockfile drift.
 - [x] Strict TypeScript diagnostics: `0`.
-- [x] Full Bun test suite passes: 131 tests / 563 assertions across 25 files.
-- [x] Dependency vulnerabilities: `0`.
-- [x] Config validation passes with no warnings/errors.
-- [x] Artifact/publication scan returns no findings.
+- [x] Full Bun test suite passes.
+- [x] Dependency audit has no unresolved material finding.
+- [x] Config validation passes.
+- [x] Artifact/publication scan passes.
 - [x] `git diff --check` is clean.
-- [x] Package dry-run reports `mandatemarshal@0.2.9` with 100 intended files.
+- [x] Package dry-run contains the intended v0.3.0 surface only.
 - [x] No secret/credential or personal absolute path is added.
-- [x] Self Codex-security review finds no unresolved material issue; the abort-path grant-lifetime issue found during review was corrected and regression-tested.
-
-## Documentation and metadata
-
-- [x] `package.json`, root plugin manifest, marketplace plugin manifest, and canonical Skill report `0.2.9`.
-- [x] `README.md` documents scoped authority and reconciliation.
-- [x] `README.ja.md` documents the same behavior in natural Japanese.
-- [x] `docs/CODEX_SETUP.md`, `docs/RUN_RECEIPTS.md`, `docs/ARCHITECTURE.md`, `SECURITY.md`, and `docs/DECISIONS.md` reflect the authority-state boundary.
-- [x] `CHANGELOG.md` contains v0.2.9 dated 2026-09-13.
+- [x] Self security review finds no unresolved material issue.
+- [x] README.ja.md passes the repository's natural-Japanese check or equivalent final review.
 
 ## Publication
 
-- [ ] v0.2.9 release commit created from the audited candidate.
-- [ ] Clean committed candidate passes final no-Codex package/test smoke.
-- [ ] Annotated `v0.2.9` tag created and pushed.
-- [ ] GitHub Release `MandateMarshal v0.2.9` published from that tag.
-- [ ] GitHub Actions passes on Ubuntu and Windows, or any pending/failure state is reported rather than guessed.
+- [ ] StackMarshal run `20260923-040630-bdc91404` reaches COMPLETE with sealed verification evidence.
+- [ ] v0.3.0 release commit is created from the audited candidate.
+- [ ] Clean committed candidate passes final package/test smoke.
+- [ ] Annotated `v0.3.0` tag is created and pushed.
+- [ ] GitHub Release `MandateMarshal v0.3.0` is published from that tag.
+- [ ] Local MandateMarshal/Codex pin is updated to 0.3.0 and `mandatemarshal version` reports the expected state.
+- [ ] GitHub Actions status is checked and any pending/failure state is reported rather than guessed.
 
-Publication must not proceed if any deterministic gate is red, the self Codex-security review has an unresolved material issue, the no-Codex audit constraint was violated, or reconciliation can manufacture authority from non-receipt evidence.
+Publication must not proceed while a deterministic gate is red, obsolete routing remains active, backward pin compatibility is broken, or the self security review has an unresolved material issue.

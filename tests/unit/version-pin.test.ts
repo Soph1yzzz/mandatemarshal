@@ -18,7 +18,7 @@ function skillContent(version: string, suffix = ""): string {
   return `---\nname: mandatemarshal\nversion: "${version}"\n---\n${suffix}`;
 }
 
-const AUTHORITY_AGENT_FILES = [
+const LEGACY_AUTHORITY_AGENT_FILES = [
   "mandatemarshal_fresh_reviewer.toml",
   "mandatemarshal_fresh_reviewer_astra_low.toml",
   "mandatemarshal_fresh_reviewer_astra_medium.toml",
@@ -29,13 +29,36 @@ const AUTHORITY_AGENT_FILES = [
   "mandatemarshal_fresh_reviewer_sol_compat.toml",
 ] as const;
 
-function authorityAgentContent(file: string): string {
-  return `name = "${file}"\nmodel = "gpt-6-astra"\nsandbox_mode = "read-only"\n`;
+const TWO_MODEL_AGENT_FILES = [
+  "mandatemarshal_routine_implementer.toml",
+  "mandatemarshal_complex_implementer.toml",
+  "mandatemarshal_fresh_reviewer.toml",
+] as const;
+
+function isTwoModelVersion(version: string): boolean {
+  const [major, minor] = version.split(".").map(Number);
+  return (major ?? 0) >= 1 || (minor ?? 0) >= 3;
 }
 
-function needsAuthorityAgents(version: string): boolean {
-  const [major, minor, patch] = version.split(".").map(Number);
-  return (major ?? 0) > 0 || (minor ?? 0) > 2 || ((minor ?? 0) === 2 && (patch ?? 0) >= 8);
+function authorityAgentFiles(version: string): readonly string[] {
+  const [, minor, patch] = version.split(".").map(Number);
+  if (isTwoModelVersion(version)) return TWO_MODEL_AGENT_FILES;
+  if ((minor ?? 0) === 2 && (patch ?? 0) >= 8) return LEGACY_AUTHORITY_AGENT_FILES;
+  return [];
+}
+
+function pluginSourcePath(version: string): string {
+  return isTwoModelVersion(version) ? "plugins/mandatemarshal-runtime" : "plugins/mandatemarshal";
+}
+
+function authorityAgentContent(version: string, file: string): string {
+  if (authorityAgentFiles(version) === TWO_MODEL_AGENT_FILES) {
+    const model = file === "mandatemarshal_routine_implementer.toml" ? "gpt-6-luna" : "gpt-6-sol";
+    const effort = file === "mandatemarshal_routine_implementer.toml" ? "max" : "high";
+    const sandbox = file === "mandatemarshal_fresh_reviewer.toml" ? "read-only" : "workspace-write";
+    return `name = "${file}"\nmodel = "${model}"\nmodel_reasoning_effort = "${effort}"\nsandbox_mode = "${sandbox}"\n`;
+  }
+  return `name = "${file}"\nmodel = "gpt-6-astra"\nsandbox_mode = "read-only"\n`;
 }
 
 function releaseFetch(targetVersion: string, targetSkillVersion = targetVersion): typeof fetch {
@@ -50,14 +73,15 @@ function releaseFetch(targetVersion: string, targetSkillVersion = targetVersion)
     if (url.endsWith("/.codex-plugin/plugin.json")) {
       return new Response(JSON.stringify({ name: "mandatemarshal", version: targetVersion }), { status: 200 });
     }
-    const agentName = AUTHORITY_AGENT_FILES.find((file) => url.endsWith(`/plugins/mandatemarshal/agents/${file}`));
-    if (agentName) return new Response(authorityAgentContent(agentName), { status: 200 });
+    const match = url.match(/\/v([^/]+)\//u);
+    const requestedVersion = match?.[1] ?? targetVersion;
+    const sourcePath = pluginSourcePath(requestedVersion);
+    const agentName = authorityAgentFiles(requestedVersion).find((file) => url.endsWith(`/${sourcePath}/agents/${file}`));
+    if (agentName) return new Response(authorityAgentContent(requestedVersion, agentName), { status: 200 });
     if (
-      url.endsWith("/plugins/mandatemarshal/skills/mandatemarshal/SKILL.md") ||
+      url.endsWith(`/${sourcePath}/skills/mandatemarshal/SKILL.md`) ||
       url.endsWith("/skills/orchestration/SKILL.md")
     ) {
-      const match = url.match(/\/v([^/]+)\//u);
-      const requestedVersion = match?.[1] ?? targetVersion;
       const version = requestedVersion === targetVersion ? targetSkillVersion : requestedVersion;
       return new Response(skillContent(version), { status: 200 });
     }
@@ -79,10 +103,11 @@ async function preparePluginCache(
     "utf8",
   );
   await writeFile(join(cache, "skills", "mandatemarshal", "SKILL.md"), skill, "utf8");
-  if (needsAuthorityAgents(version)) {
+  const agents = authorityAgentFiles(version);
+  if (agents.length > 0) {
     await mkdir(join(cache, "agents"), { recursive: true });
-    for (const file of AUTHORITY_AGENT_FILES) {
-      await writeFile(join(cache, "agents", file), authorityAgentContent(file), "utf8");
+    for (const file of agents) {
+      await writeFile(join(cache, "agents", file), authorityAgentContent(version, file), "utf8");
     }
   }
   return cache;
@@ -107,7 +132,7 @@ function runnerFor(
                 {
                   pluginId: "mandatemarshal@mandatemarshal",
                   version,
-                  source: { source: "local", path: join(marketplaceRoot, "plugins", "mandatemarshal") },
+                  source: { source: "local", path: join(marketplaceRoot, ...pluginSourcePath(version).split("/")) },
                 },
               ]
             : [],
@@ -284,34 +309,51 @@ describe("MandateMarshal version pinning", () => {
     expect(calls).toEqual([]);
   });
 
-  test("version info reports plugin cache Skill as canonical and requires no legacy Skill", async () => {
+  test("v0.3.0 pin verifies exactly the Sol/Luna active profiles and version info aligns", async () => {
     const home = await mkdtemp(join(tmpdir(), "mandatemarshal-version-info-"));
     const codexHome = join(home, ".codex");
     const marketplaceRoot = join(home, "marketplace");
-    await preparePluginCache(codexHome, "0.2.9");
-    await pinMandateMarshal("0.2.9", {
+    await preparePluginCache(codexHome, "0.3.0");
+    await pinMandateMarshal("0.3.0", {
       home,
       codexHome,
-      fetchImpl: releaseFetch("0.2.9"),
-      runner: runnerFor("0.2.9", marketplaceRoot, []),
+      fetchImpl: releaseFetch("0.3.0"),
+      runner: runnerFor("0.3.0", marketplaceRoot, []),
     });
 
     const info = await inspectMandateMarshalVersion({
       home,
       codexHome,
-      runner: runnerFor("0.2.9", marketplaceRoot, [], { installed: true, marketplace: true }),
+      runner: runnerFor("0.3.0", marketplaceRoot, [], { installed: true, marketplace: true }),
     });
     expect(info).toEqual({
-      version: "0.2.9",
+      version: "0.3.0",
       pinStatus: "pinned",
-      pinnedVersion: "0.2.9",
-      installedPluginVersion: "0.2.9",
-      pluginCacheVersion: "0.2.9",
-      pluginCacheSkillVersion: "0.2.9",
+      pinnedVersion: "0.3.0",
+      installedPluginVersion: "0.3.0",
+      pluginCacheVersion: "0.3.0",
+      pluginCacheSkillVersion: "0.3.0",
       pluginCacheAuthorityProfilesReady: true,
       legacySkillVersion: null,
       aligned: true,
     });
+  });
+
+  test("v0.3.0 pin rejects drift in a Luna/Sol active profile", async () => {
+    const home = await mkdtemp(join(tmpdir(), "mandatemarshal-pin-v030-tamper-"));
+    const codexHome = join(home, ".codex");
+    const marketplaceRoot = join(home, "marketplace");
+    const cache = await preparePluginCache(codexHome, "0.3.0");
+    await writeFile(join(cache, "agents", "mandatemarshal_routine_implementer.toml"), "tampered\n", "utf8");
+    await expect(
+      pinMandateMarshal("0.3.0", {
+        home,
+        codexHome,
+        codexBin: "codex-test",
+        fetchImpl: releaseFetch("0.3.0"),
+        runner: runnerFor("0.3.0", marketplaceRoot, []),
+      }),
+    ).rejects.toThrow("PIN_CACHE_AUTHORITY_PROFILE_HASH_MISMATCH");
   });
 
   test("status reports drift when Codex has a different installed plugin version", async () => {

@@ -1,9 +1,12 @@
 import type { ArtifactRule, HostCapabilities, OwnerContract } from "./core/types";
 import { COMPLEXITY_TRIGGERS, type ComplexityTrigger } from "./orchestrator/routing";
 import {
-  CODEX_FRONTIER_AUTHORITY_MODEL,
-  isCodexAuthorityEffort,
-  type CodexAuthorityEffort,
+  CODEX_AUTHORITY_EFFORT,
+  CODEX_AUTHORITY_MODEL,
+  CODEX_DEFAULT_IMPLEMENTER_EFFORT,
+  CODEX_DEFAULT_IMPLEMENTER_MODEL,
+  CODEX_ESCALATION_IMPLEMENTER_EFFORT,
+  CODEX_ESCALATION_IMPLEMENTER_MODEL,
   type CodexNativeRoleConfig,
 } from "./adapters/codex/role-mapping";
 
@@ -17,9 +20,9 @@ export interface CommandPolicyConfig {
 export interface MandateMarshalConfig {
   schemaVersion: 1;
   host: string;
-  authority?: {
-    model: typeof CODEX_FRONTIER_AUTHORITY_MODEL;
-    effort: CodexAuthorityEffort;
+  authority: {
+    model: typeof CODEX_AUTHORITY_MODEL;
+    effort: typeof CODEX_AUTHORITY_EFFORT;
     mirrorFreshReviewer: true;
   };
   roles: {
@@ -62,35 +65,56 @@ export function validateConfig(config: unknown, hostCapabilities?: HostCapabilit
   if (!nonEmpty(config.host)) errors.push("host is required");
   if (!isRecord(config.roles)) errors.push("roles are required");
   else {
-    validateNativeRole(config.roles.routineImplementer, "routine-implementer", "roles.routineImplementer", errors);
-    validateNativeRole(config.roles.complexImplementer, "complex-implementer", "roles.complexImplementer", errors);
-    validateNativeRole(config.roles.freshReviewer, "fresh-reviewer", "roles.freshReviewer", errors);
-    if (!isRecord(config.roles.parent)) errors.push("roles.parent is required");
-    else if (config.roles.parent.mode !== "inherit") {
-      validateNativeRole(config.roles.parent, undefined, "roles.parent", errors);
-    }
+    validateExactNativeRole(
+      config.roles.routineImplementer,
+      "routine-implementer",
+      CODEX_DEFAULT_IMPLEMENTER_MODEL,
+      CODEX_DEFAULT_IMPLEMENTER_EFFORT,
+      "roles.routineImplementer",
+      errors,
+    );
+    validateExactNativeRole(
+      config.roles.complexImplementer,
+      "complex-implementer",
+      CODEX_ESCALATION_IMPLEMENTER_MODEL,
+      CODEX_ESCALATION_IMPLEMENTER_EFFORT,
+      "roles.complexImplementer",
+      errors,
+    );
+    validateExactNativeRole(
+      config.roles.freshReviewer,
+      "fresh-reviewer",
+      CODEX_AUTHORITY_MODEL,
+      CODEX_AUTHORITY_EFFORT,
+      "roles.freshReviewer",
+      errors,
+    );
+    validateExactNativeRole(
+      config.roles.parent,
+      "parent",
+      CODEX_AUTHORITY_MODEL,
+      CODEX_AUTHORITY_EFFORT,
+      "roles.parent",
+      errors,
+    );
   }
-  if (config.authority !== undefined) {
-    if (!isRecord(config.authority)) errors.push("authority must be an object");
-    else {
-      if (config.authority.model !== CODEX_FRONTIER_AUTHORITY_MODEL) {
-        errors.push(`authority.model must equal ${CODEX_FRONTIER_AUTHORITY_MODEL}`);
+  if (!isRecord(config.authority)) errors.push("authority config is required");
+  else {
+    if (config.authority.model !== CODEX_AUTHORITY_MODEL) {
+      errors.push(`authority.model must equal ${CODEX_AUTHORITY_MODEL}`);
+    }
+    if (config.authority.effort !== CODEX_AUTHORITY_EFFORT) {
+      errors.push(`authority.effort must equal ${CODEX_AUTHORITY_EFFORT}`);
+    }
+    if (config.authority.mirrorFreshReviewer !== true) errors.push("authority.mirrorFreshReviewer must be true");
+    if (isRecord(config.roles)) {
+      const parent = config.roles.parent;
+      const reviewer = config.roles.freshReviewer;
+      if (!isRecord(parent) || parent.model !== config.authority.model || parent.effort !== config.authority.effort) {
+        errors.push("roles.parent must match authority model/effort");
       }
-      if (!isCodexAuthorityEffort(config.authority.effort)) {
-        errors.push("authority.effort must be one of low|medium|high|xhigh|max");
-      }
-      if (config.authority.mirrorFreshReviewer !== true) errors.push("authority.mirrorFreshReviewer must be true");
-      if (isRecord(config.roles)) {
-        const parent = config.roles.parent;
-        const reviewer = config.roles.freshReviewer;
-        if (!isRecord(parent) || parent.mode === "inherit") {
-          errors.push("authority config requires an explicit Astra Parent role mapping");
-        } else if (parent.model !== config.authority.model || parent.effort !== config.authority.effort) {
-          errors.push("roles.parent must match authority model/effort");
-        }
-        if (!isRecord(reviewer) || reviewer.model !== config.authority.model || reviewer.effort !== config.authority.effort) {
-          errors.push("roles.freshReviewer must mirror authority model/effort");
-        }
+      if (!isRecord(reviewer) || reviewer.model !== config.authority.model || reviewer.effort !== config.authority.effort) {
+        errors.push("roles.freshReviewer must mirror authority model/effort");
       }
     }
   }
@@ -128,7 +152,7 @@ export function validateConfig(config: unknown, hostCapabilities?: HostCapabilit
   }
   if (!isRecord(config.routing)) errors.push("routing config is required");
   else {
-    if (config.routing.defaultLane !== "routine-implementer") errors.push("v0.1 defaultLane must be routine-implementer");
+    if (config.routing.defaultLane !== "routine-implementer") errors.push("v0.3 defaultLane must be routine-implementer");
     if (config.routing.allowSilentFallback !== false) errors.push("silent fallback is forbidden");
     if (!Array.isArray(config.routing.complexityTriggers)) errors.push("routing.complexityTriggers must be an array");
     else {
@@ -169,9 +193,11 @@ export function validateConfig(config: unknown, hostCapabilities?: HostCapabilit
   return { valid: errors.length === 0, errors, warnings };
 }
 
-function validateNativeRole(
+function validateExactNativeRole(
   value: unknown,
-  expectedNativeRole: string | undefined,
+  expectedNativeRole: string,
+  expectedModel: string,
+  expectedEffort: string,
   path: string,
   errors: string[],
 ): void {
@@ -179,12 +205,9 @@ function validateNativeRole(
     errors.push(`${path} is required`);
     return;
   }
-  if (!nonEmpty(value.nativeRole)) errors.push(`${path}.nativeRole is required`);
-  else if (expectedNativeRole !== undefined && value.nativeRole !== expectedNativeRole) {
-    errors.push(`${path}.nativeRole must equal ${expectedNativeRole}`);
-  }
-  if (!nonEmpty(value.model)) errors.push(`${path}.model is required`);
-  if (!nonEmpty(value.effort)) errors.push(`${path}.effort is required`);
+  if (value.nativeRole !== expectedNativeRole) errors.push(`${path}.nativeRole must equal ${expectedNativeRole}`);
+  if (value.model !== expectedModel) errors.push(`${path}.model must equal ${expectedModel}`);
+  if (value.effort !== expectedEffort) errors.push(`${path}.effort must equal ${expectedEffort}`);
 }
 
 function nonEmpty(value: unknown): value is string {

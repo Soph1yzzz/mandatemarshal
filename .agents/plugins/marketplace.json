@@ -8,7 +8,7 @@
       "name": "mandatemarshal",
       "source": {
         "source": "local",
-        "path": "./plugins/mandatemarshal"
+        "path": "./plugins/mandatemarshal-runtime"
       },
       "policy": {
         "installation": "AVAILABLE",

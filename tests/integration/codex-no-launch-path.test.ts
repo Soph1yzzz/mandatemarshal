@@ -24,8 +24,8 @@ const caps: HostCapabilities = {
   routingObservation: false,
 };
 
-describe("Codex no-launch authority route", () => {
-  test("manual agent installer lays down every authority profile without invoking Codex", async () => {
+describe("Codex no-launch v0.3 route", () => {
+  test("manual agent installer lays down exactly the three active Sol/Luna profiles without invoking Codex", async () => {
     const root = await mkdtemp(join(tmpdir(), "mandatemarshal-agent-install-"));
     const target = join(root, ".codex", "agents");
     try {
@@ -37,24 +37,17 @@ describe("Codex no-launch authority route", () => {
       const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
       expect(code).toBe(0);
       expect(stderr).toBe("");
-      const files = (await readdir(target)).sort();
-      for (const file of [
+      expect((await readdir(target)).sort()).toEqual([
+        "mandatemarshal_complex_implementer.toml",
         "mandatemarshal_fresh_reviewer.toml",
-        "mandatemarshal_fresh_reviewer_astra_low.toml",
-        "mandatemarshal_fresh_reviewer_astra_medium.toml",
-        "mandatemarshal_fresh_reviewer_astra_high.toml",
-        "mandatemarshal_fresh_reviewer_astra_xhigh.toml",
-        "mandatemarshal_fresh_reviewer_astra_max.toml",
-        "mandatemarshal_fresh_reviewer_sol_compat.toml",
-      ]) {
-        expect(files).toContain(file);
-      }
+        "mandatemarshal_routine_implementer.toml",
+      ]);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
   });
 
-  test("selected Parent Astra effort reaches the exact fresh reviewer exec plan without spawning Codex", async () => {
+  test("fixed Sol/High reviewer reaches the exact fresh read-only exec plan without spawning Codex", async () => {
     let reviewerRole: { nativeRole: string; model: string; effort: string } | undefined;
     const driver: CodexDriver = {
       async capabilities() { return caps; },
@@ -66,8 +59,8 @@ describe("Codex no-launch authority route", () => {
         return { id: "review-no-launch", result: review("PASS", "candidate-1") };
       },
     };
-    const adapter = new CodexAdapter(driver, { authorityEffort: "max" });
-    adapter.assertParentAuthoritySelection({ model: "gpt-6-astra", effort: "max" });
+    const adapter = new CodexAdapter(driver);
+    adapter.assertParentAuthoritySelection({ model: "gpt-6-sol", effort: "high" });
     await adapter.spawnFreshReviewer({
       candidateId: "candidate-1",
       objective: "verify no-launch route",
@@ -76,7 +69,7 @@ describe("Codex no-launch authority route", () => {
       allowedPaths: ["src/**"],
       evidence: evidence(),
     });
-    expect(reviewerRole).toEqual({ nativeRole: "fresh-reviewer", model: "gpt-6-astra", effort: "max" });
+    expect(reviewerRole).toEqual({ nativeRole: "fresh-reviewer", model: "gpt-6-sol", effort: "high" });
     const args = buildCodexExecArgs({
       cwd: process.cwd(),
       role: reviewerRole!,
@@ -85,14 +78,14 @@ describe("Codex no-launch authority route", () => {
       outputPath: "C:/tmp/review-output.json",
       persistent: false,
     });
-    expect(args).toContain("gpt-6-astra");
-    expect(args).toContain('model_reasoning_effort="max"');
+    expect(args).toContain("gpt-6-sol");
+    expect(args).toContain('model_reasoning_effort="high"');
     expect(args).toContain("read-only");
     expect(args).toContain("--ephemeral");
-    expect(args).not.toContain("gpt-5.6-sol");
+    expect(args).not.toContain("gpt-6-astra");
   });
 
-  test("implementation lanes remain Luna/Max and Terra/High while authority uses Astra", async () => {
+  test("implementation lanes are Luna/Max by default and Sol/High only for explicit escalation", async () => {
     const requests: Array<{ model: string; effort: string }> = [];
     const driver: CodexDriver = {
       async capabilities() { return caps; },
@@ -104,13 +97,13 @@ describe("Codex no-launch authority route", () => {
         throw new Error("reviewer must not be called in implementation route test");
       },
     };
-    const adapter = new CodexAdapter(driver, { authorityEffort: "low" });
-    expect(adapter.parentAuthorityRequirement()).toEqual({ nativeRole: "parent", model: "gpt-6-astra", effort: "low" });
+    const adapter = new CodexAdapter(driver);
+    expect(adapter.parentAuthorityRequirement()).toEqual({ nativeRole: "parent", model: "gpt-6-sol", effort: "high" });
     await adapter.spawnImplementer({ packet: packet("routine-implementer") });
     await adapter.spawnImplementer({ packet: packet("complex-implementer") });
     expect(requests).toEqual([
-      { model: "gpt-5.6-luna", effort: "max" },
-      { model: "gpt-5.6-terra", effort: "high" },
+      { model: "gpt-6-luna", effort: "max" },
+      { model: "gpt-6-sol", effort: "high" },
     ]);
   });
 });

@@ -121,11 +121,11 @@ projectをactivationすると、その後は同じproject内で毎回名前を�
 ```mermaid
 flowchart LR
     O["User / Owner Contracts"] --> P["Parent Orchestrator"]
-    P --> R["Routine Implementer<br/>Luna / Max"]
-    P --> C["Complex Implementer<br/>Terra / High"]
+    P --> R["Default Implementer<br/>GPT-6 Luna / Max"]
+    R -->|blocked + Parent reclassification| C["Escalation Implementer<br/>GPT-6 Sol / High"]
     R --> V["Parent Verification"]
     C --> V
-    V --> F["Fresh Reviewer<br/>Astra / Owner-selected effort<br/>read-only"]
+    V --> F["Fresh Reviewer<br/>GPT-6 Sol / High<br/>read-only"]
     F -->|PASS| A["Accept exact candidate"]
     F -->|FIX| P
     F -->|ESCALATE| O
@@ -140,7 +140,7 @@ flowchart LR
 | User / Owner | 目的、Owner Contract、例外、恒久的・不可逆性の高い判断 | 細かい実装判断まで強制的に引き取ること |
 | Parent Orchestrator | 設計、分解、routing、検証、review対応、最終受け入れ | Owner Contractを黙って変更すること |
 | Routine Implementer | 固まった範囲の実装 | architectureの作り直し、勝手なlane昇格、無断commit/tag/push |
-| Complex Implementer | 高い文脈量が必要な実装 | 難しいことを理由にOwner policyまで変更すること |
+| Complex Implementer | Lunaが具体的にblockedした後の明示的なSol escalation | 難しそうという予測だけで自己昇格すること、Owner policyまで変更すること |
 | Fresh Reviewer | read-onlyのQA、code review、execution contract確認 | 自分で修正すること、repositoryを変更すること、第二のarchitectになること |
 
 Reviewerの判定は次の3つだけです。
@@ -163,28 +163,20 @@ DETECT -> INVESTIGATE -> PROPOSE -> HOLD -> ESCALATE
 
 ## Codexでの使い方
 
-v0.2.8では、ParentとFresh Reviewerが使うauthority modelを**GPT-6 Astra**へ揃えています。
+v0.3.0では、Codex routingを**GPT-6 Luna + GPT-6 Solの2モデル**へ整理しています。
 
 | Semantic role | Codex model | Reasoning effort |
 | --- | --- | --- |
-| Parent | `gpt-6-astra` | Ownerが選んだeffort |
-| `fresh-reviewer` | `gpt-6-astra` | Parentと同じeffort |
-| `routine-implementer` | `gpt-5.6-luna` | `max` |
-| `complex-implementer` | `gpt-5.6-terra` | `high` |
+| Parent | `gpt-6-sol` | `high` |
+| `fresh-reviewer` | `gpt-6-sol` | `high` |
+| `routine-implementer` | `gpt-6-luna` | `max` |
+| `complex-implementer` | `gpt-6-sol` | `high` |
 
-Astraのauthority effortは次の5段階です。
+Parentはユーザーが操作しているroot session、Fresh Reviewerはfresh contextかつread-onlyです。同じSol / Highでも役割とコンテキストは分離します。
 
-```text
-low | medium | high | xhigh | max
-```
+実装は必ずLuna / Maxから始めます。最初から「複雑そうだからSol」は選びません。Lunaが実際に具体的なblockerを返した場合だけ、Parentが理由付きで`routine-implementer -> complex-implementer`を明示的にreclassificationし、Sol / Highへ上げます。
 
-標準設定は`medium`です。Ownerが別のeffortを選んだ場合、Fresh Reviewerも同じ値を使います。
-
-ただし、ParentとReviewerが同じモデル・effortだからといって同じ役割になるわけではありません。Parentはユーザーが操作しているroot session、Fresh Reviewerはfresh contextかつread-onlyです。独立性はモデル名ではなく、**コンテキストと権限の分離**で作ります。
-
-未知のeffort名は拒否します。Astraが使えないときにSolへ落とす、`max`より上らしい値を勝手に`max`へ丸める、といった暗黙のfallbackはしません。
-
-旧世代が必要な場合のみ、Fresh Reviewerへ`sol-high-compat`を明示指定できます。
+Luna自体を起動できない場合はcapability errorです。これはSolへ切り替える理由にはなりません。Astra、Terra、GPT-5.6、旧`sol-high-compat`はv0.3.0のactive routingから外れています。
 
 ## Pin時にSkillとauthority profileを照合する
 
@@ -197,7 +189,7 @@ published release tag
         ↓
 plugin manifest
 canonical Skill
-Astra reviewer profiles
+release-appropriate agent profiles
         ↓ hash verification
 exact versioned plugin cache
         ↓
@@ -224,11 +216,11 @@ bun run install:codex-agents -- /path/to/target/.codex/agents
 
 生成される主なprofileは次の通りです。
 
-- Routine Implementer: Luna / Max / `workspace-write`
-- Complex Implementer: Terra / High / `workspace-write`
-- Fresh Reviewer: Astra / Low〜Max / `read-only`
-- default Fresh Reviewer: Astra / Medium
-- compatibility: Sol / Highは明示指定時のみ
+- Routine Implementer: GPT-6 Luna / Max / `workspace-write`
+- Complex Implementer: GPT-6 Sol / High / `workspace-write`（Lunaがblockedした後の明示的escalationのみ）
+- Fresh Reviewer: GPT-6 Sol / High / `read-only`
+
+installerが配置するactive profileはこの3つだけです。Astra、Terra、GPT-5.6、旧compatibility profileはv0.3.0のinstall対象に含めません。
 
 既存profileは勝手に上書きしません。必要な場合だけ`--force`を明示します。
 
@@ -239,13 +231,13 @@ repositoryにはplugin packageと移行用pathがありますが、runtime Skill
 ```text
 .agents/plugins/marketplace.json
 .codex-plugin/plugin.json
-plugins/mandatemarshal/.codex-plugin/plugin.json
-plugins/mandatemarshal/skills/mandatemarshal/   # runtime Skillの正本
-plugins/mandatemarshal/agents/                  # bundled agent profiles
+plugins/mandatemarshal-runtime/.codex-plugin/plugin.json
+plugins/mandatemarshal-runtime/skills/mandatemarshal/   # v0.3+ runtime Skillの正本
+plugins/mandatemarshal-runtime/agents/                  # active profile 3個だけ
 skills/orchestration/SKILL.md                   # migration pointerのみ
 ```
 
-`skills/orchestration/`にはSkill frontmatterを置きません。古いリンクを壊さないための案内だけを残し、同じSkillを二重管理しない構成です。
+v0.3+では`plugins/mandatemarshal-runtime/`だけをMarketplaceとpackageの正本にします。`skills/orchestration/`と旧`plugins/mandatemarshal/`側のSkill entryにはfrontmatterを置かず、古いリンクと履歴を残すための案内に限定します。これにより、旧Astra/5.6 profileをrepo上の履歴として残してもv0.3のinstall/cache surfaceには入りません。
 
 ## Project activation
 

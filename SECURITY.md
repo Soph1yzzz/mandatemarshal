@@ -4,7 +4,7 @@ MandateMarshal security includes conventional software security **and truthful o
 
 ## Supported version
 
-Security fixes currently target the latest `0.2.x` release line.
+Security fixes currently target the latest `0.3.x` release line.
 
 ## Threat and failure model
 
@@ -27,10 +27,11 @@ An unavailable role/model/effort must not be silently replaced.
 Mitigations:
 
 - exact model/effort capability checks before Codex delegation;
-- Astra authority effort is runtime-whitelisted before it can enter the Codex launch plan;
-- Parent/Fresh Reviewer authority effort is bound as one exact selection; ambiguous reviewer overrides fail closed;
-- adapter has no fallback path: unknown effort labels are rejected, and Astra is never silently substituted with Sol or another generation;
-- routine complexity reclassification is a distinct, explicit Parent transition.
+- Parent and Fresh Reviewer are fixed to exact `gpt-6-sol/high`; mismatched authority selection fails closed;
+- default implementation is fixed to exact `gpt-6-luna/max`;
+- adapter has no fallback path: Luna launch/capability failure is surfaced and never silently substituted with Sol;
+- Sol implementation escalation requires an observed Luna blocker plus a distinct, explicit Parent `routine -> complex` reclassification;
+- Astra, Terra, GPT-5.6, and legacy compatibility selectors are not active v0.3.0 routes.
 
 ### Reviewer mutation
 
@@ -144,7 +145,7 @@ Mitigations:
 - Codex marketplace configuration is pinned to the exact Git tag;
 - Codex's observed installed plugin version is checked before the local pin record is committed;
 - the exact versioned cache path `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` is computed deterministically and its plugin manifest version, Skill version, and LF-normalized Skill SHA-256 are verified against the published release;
-- for v0.2.8+, every release-critical Astra authority reviewer profile plus explicit Sol compatibility profile is fetched from the immutable release tag and LF-normalized-hash matched to the exact versioned cache before pin success;
+- release-critical agent-profile verification is version-aware: v0.2.8-v0.2.9 verify the historical Astra/Sol-compat set, while v0.3.0+ verifies exactly the active Luna/Sol three-profile set; every required profile is fetched from the immutable release tag and LF-normalized-hash matched to the exact versioned cache before pin success;
 - no alternative cache directory or legacy global Skill is searched as a fallback when the canonical cache is missing or mismatched;
 - a pre-existing global `~/.codex/skills/mandatemarshal/SKILL.md` is removed only after its LF-normalized content hash is proven identical to the official Skill from its own published release; customized/unverifiable content blocks pinning before Codex installation state is changed, and neighboring files are not deleted;
 - package, root plugin, marketplace plugin, the single canonical native-plugin Skill, and bundled agent copies are regression-tested for version/content drift;

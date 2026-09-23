@@ -6,14 +6,14 @@ MandateMarshal uses semantic roles in core and maps them to Codex-specific agent
 
 | Role | Model | Reasoning effort | Requested sandbox |
 | --- | --- | --- | --- |
-| routine implementer | `gpt-5.6-luna` | `max` | `workspace-write` |
-| complex implementer | `gpt-5.6-terra` | `high` | `workspace-write` |
-| fresh reviewer | `gpt-6-astra` | Owner-selected authority effort | `read-only` |
-| Parent | `gpt-6-astra` | Owner-selected authority effort | root host/session policy |
+| routine implementer | `gpt-6-luna` | `max` | `workspace-write` |
+| complex implementer | `gpt-6-sol` | `high` | `workspace-write` |
+| fresh reviewer | `gpt-6-sol` | `high` | `read-only` |
+| Parent | `gpt-6-sol` | `high` | root host/session policy |
 
-v0.2.8 activates the Frontier Authority Profile. Parent and Fresh Reviewer share one exact Astra authority effort selected by the Owner: `low`, `medium`, `high`, `xhigh`, or `max`. The packaged default is `medium`. The reviewer remains fresh and read-only; only model/effort selection is mirrored. Sol is retained only as the explicit `sol-high-compat` reviewer profile.
+v0.3.0 uses a fixed two-model routing policy. Parent and Fresh Reviewer use GPT-6 Sol / High. Every settled implementation starts on GPT-6 Luna / Max. The legacy `complex-implementer` name remains for wire compatibility, but it is now the explicit Sol / High escalation lane used only after Luna reports a concrete blocker and Parent records the reclassification.
 
-Parent is the user-facing root Codex session, not a child MandateMarshal recursively launches. Host integrations that can observe the root model/effort must validate it against the authority profile. Where that observation is unavailable, MandateMarshal treats exact Parent selection as an explicit precondition and must not claim it was independently observed. These mappings are exact requests: unavailable Astra/effort combinations fail loudly, and unknown effort labels are rejected rather than normalized; no silent downgrade to another effort, Sol, or another generation is allowed.
+Parent is the user-facing root Codex session, not a child MandateMarshal recursively launches. Host integrations that can observe the root model/effort must validate exact `gpt-6-sol/high`. Where observation is unavailable, MandateMarshal treats that exact selection as an explicit precondition and does not claim independent observation. Failure to launch Luna is a capability error, not permission to substitute Sol. Astra, Terra, GPT-5.6, and the old compatibility selector are not active v0.3.0 routes.
 
 ## Release pinning and updates
 
@@ -26,23 +26,23 @@ mandatemarshal pin latest
 to resolve the latest published GitHub Release and pin Codex to that exact tag, or:
 
 ```bash
-mandatemarshal pin 0.2.9
+mandatemarshal pin 0.3.0
 ```
 
-for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift; v0.2.8+ also requires the Astra authority profile set to be present in the exact versioned cache.
+for a reproducible exact version. `mandatemarshal pin status` reports the recorded pin and detects installed-plugin/cache/Skill drift. Profile verification is version-aware: v0.2.8-v0.2.9 require the historical Astra/Sol-compat set, while v0.3.0+ requires the active Luna/Sol three-profile set.
 
 `mandatemarshal version` reports the runtime, pin, installed plugin, exact versioned-cache manifest/Skill versions, v0.2.8+ authority-profile readiness, and any legacy global Skill together. `mandatemarshal --version` and `mandatemarshal -v` print only the runtime version.
 
 The pin flow:
 
 1. resolves and verifies a published MandateMarshal GitHub Release before mutating Codex state;
-2. verifies the release's plugin manifest and the single canonical Skill at `plugins/mandatemarshal/skills/mandatemarshal/SKILL.md` report the same version;
+2. verifies the release's plugin manifest and the version-appropriate canonical Skill report the same version; v0.3+ uses `plugins/mandatemarshal-runtime/skills/mandatemarshal/SKILL.md`, while older release tags retain their historical path;
 3. checks any pre-existing global `~/.codex/skills/mandatemarshal/SKILL.md` before mutation; only an official released MandateMarshal Skill whose LF-normalized content hash matches its own release is eligible for automatic removal, while customized content blocks pinning;
 4. configures the MandateMarshal Git repository as a Codex plugin marketplace at the exact release tag;
 5. installs the `mandatemarshal@mandatemarshal` plugin from that marketplace;
 6. verifies Codex reports the expected installed plugin version;
 7. computes exactly `~/.codex/plugins/cache/mandatemarshal/mandatemarshal/<version>` as the canonical runtime plugin cache and verifies its plugin manifest version, Skill version, and LF-normalized Skill SHA-256 against the published release;
-8. for v0.2.8+, fetches the released authority-reviewer agent files from the same immutable tag and verifies every corresponding cache `agents/*.toml` file by LF-normalized SHA-256;
+8. fetches the release-appropriate agent-profile set from the same immutable tag and verifies every required cache `agents/*.toml` file by LF-normalized SHA-256; v0.2.8-v0.2.9 use the historical authority set, while v0.3.0+ uses the active Luna/Sol set;
 9. removes only the proven legacy global `SKILL.md` file so native plugin discovery is the only runtime Skill authority without deleting unrelated neighboring files;
 10. stores the marketplace/runtime checkout and canonical versioned-cache source separately under `~/.mandatemarshal/pin.json`.
 
@@ -68,7 +68,7 @@ bun run install:codex-agents -- /path/to/target/.codex/agents
 
 The installer refuses to overwrite an existing file. Use `--force` only after manually reviewing the destination and intended replacement.
 
-The v0.2.8 installer includes Astra reviewer profiles for `low`, `medium`, `high`, `xhigh`, and `max`, plus explicit `sol-high-compat`. The regular effort names are `mandatemarshal_fresh_reviewer_astra_<effort>`; the older `mandatemarshal_fresh_reviewer_astra` remains a High compatibility alias. After adding or changing custom agent profiles, start a new Codex session so future subagent tasks load the updated definitions.
+The v0.3.0 installer includes exactly three active profiles: `mandatemarshal_routine_implementer` (GPT-6 Luna / Max), `mandatemarshal_complex_implementer` (GPT-6 Sol / High, escalation only), and `mandatemarshal_fresh_reviewer` (GPT-6 Sol / High, read-only). Astra profiles, Terra routing, GPT-5.6 profiles, and `sol-high-compat` are not active install targets. After adding or changing custom agent profiles, start a new Codex session so future subagent tasks load the updated definitions.
 
 ## Real CLI driver
 
@@ -83,10 +83,10 @@ codex exec --ephemeral ... -m <model> -c model_reasoning_effort="<effort>" -s wo
 Fresh Reviewer:
 
 ```text
-codex exec --ephemeral ... -m gpt-6-astra -c model_reasoning_effort="<authority-effort>" -s read-only
+codex exec --ephemeral ... -m gpt-6-sol -c model_reasoning_effort="high" -s read-only
 ```
 
-For native subagent hosts that expose per-spawn `model` / `reasoning_effort` overrides, prefer an explicit Astra + authority-effort spawn request. Static custom-agent TOML remains a packaging/fallback surface and is not by itself evidence that a particular host actually resolved the child to those values. Requested and observed route evidence stay separate.
+For native subagent hosts that expose per-spawn `model` / `reasoning_effort` overrides, prefer an explicit GPT-6 Sol / High Fresh Reviewer request. Static custom-agent TOML remains a packaging/fallback surface and is not by itself evidence that a particular host actually resolved the child to those values. Requested and observed route evidence stay separate.
 
 The driver does not contain a model fallback table. `buildCodexExecArgs` is the pure launch-plan constructor used by runtime execution and by no-launch route tests, allowing model/effort/sandbox verification without starting a Codex process.
 
@@ -109,14 +109,14 @@ MandateMarshal also ships a Codex marketplace manifest, plugin package, and orch
 
 ```text
 .agents/plugins/marketplace.json
-plugins/mandatemarshal/.codex-plugin/plugin.json
-plugins/mandatemarshal/skills/mandatemarshal/SKILL.md
-plugins/mandatemarshal/agents/*.toml
+plugins/mandatemarshal-runtime/.codex-plugin/plugin.json
+plugins/mandatemarshal-runtime/skills/mandatemarshal/SKILL.md
+plugins/mandatemarshal-runtime/agents/*.toml
 .codex-plugin/plugin.json
 skills/orchestration/SKILL.md   # migration pointer only; no Skill frontmatter
 ```
 
-`plugins/mandatemarshal/skills/mandatemarshal/` is the single committed runtime Skill source. The historical root `skills/orchestration/` path is deliberately a frontmatter-free migration pointer rather than a second committed Skill copy.
+`plugins/mandatemarshal-runtime/skills/mandatemarshal/` is the single active committed runtime Skill source for v0.3+. The v0.3 marketplace source points at that clean plugin root, whose `agents/` directory contains only the three active Luna/Sol profiles. The old `plugins/mandatemarshal/` tree and root `skills/orchestration/` entry are retained only as inactive history/migration material and their Skill entry files have no frontmatter.
 
 The Skill is **explicit-first, project-persistent**. An unregistered project requires an explicit first selection. That selection may be persisted outside the target repository with:
 
@@ -164,7 +164,7 @@ Expected fail-loudly conditions include:
 - `PERSISTENT_CORRECTION_UNAVAILABLE`
 - `REVIEW_CANDIDATE_MISMATCH`
 
-A capability error is not a complexity trigger. For example, failure to launch Luna/Max must not be re-labelled as justification to launch Terra/High.
+A capability error is not an escalation trigger. For example, failure to launch Luna/Max must not be re-labelled as justification to launch Sol/High. Only an actual bounded blocker reported by the Luna worker can support Parent's explicit routine-to-complex reclassification.
 
 ## References
 

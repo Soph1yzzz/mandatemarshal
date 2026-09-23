@@ -1,9 +1,9 @@
-import type { ImplementationLane, ReasoningEffort, RoutingEvidence } from "../../core/types";
+import type { ImplementationLane, RoutingEvidence } from "../../core/types";
 
 export interface CodexNativeRoleConfig {
   nativeRole: string;
   model: string;
-  effort: ReasoningEffort;
+  effort: string;
 }
 
 export interface CodexRoleMapping {
@@ -13,89 +13,35 @@ export interface CodexRoleMapping {
   freshReviewer: CodexNativeRoleConfig;
 }
 
-export const CODEX_FRONTIER_AUTHORITY_MODEL = "gpt-6-astra" as const;
-export const CODEX_AUTHORITY_EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
-export type CodexAuthorityEffort = (typeof CODEX_AUTHORITY_EFFORTS)[number];
-export const DEFAULT_CODEX_AUTHORITY_EFFORT: CodexAuthorityEffort = "medium";
+export const CODEX_AUTHORITY_MODEL = "gpt-6-sol" as const;
+export const CODEX_AUTHORITY_EFFORT = "high" as const;
+export const CODEX_DEFAULT_IMPLEMENTER_MODEL = "gpt-6-luna" as const;
+export const CODEX_DEFAULT_IMPLEMENTER_EFFORT = "max" as const;
+export const CODEX_ESCALATION_IMPLEMENTER_MODEL = "gpt-6-sol" as const;
+export const CODEX_ESCALATION_IMPLEMENTER_EFFORT = "high" as const;
 
-export const CODEX_FRESH_REVIEWER_PROFILES = {
-  "astra-low": {
-    nativeRole: "fresh-reviewer",
-    model: CODEX_FRONTIER_AUTHORITY_MODEL,
-    effort: "low",
+export const DEFAULT_CODEX_ROLE_MAPPING: CodexRoleMapping = {
+  parent: {
+    nativeRole: "parent",
+    model: CODEX_AUTHORITY_MODEL,
+    effort: CODEX_AUTHORITY_EFFORT,
   },
-  "astra-medium": {
-    nativeRole: "fresh-reviewer",
-    model: CODEX_FRONTIER_AUTHORITY_MODEL,
-    effort: "medium",
+  routineImplementer: {
+    nativeRole: "routine-implementer",
+    model: CODEX_DEFAULT_IMPLEMENTER_MODEL,
+    effort: CODEX_DEFAULT_IMPLEMENTER_EFFORT,
   },
-  "astra-high": {
-    nativeRole: "fresh-reviewer",
-    model: CODEX_FRONTIER_AUTHORITY_MODEL,
-    effort: "high",
+  complexImplementer: {
+    nativeRole: "complex-implementer",
+    model: CODEX_ESCALATION_IMPLEMENTER_MODEL,
+    effort: CODEX_ESCALATION_IMPLEMENTER_EFFORT,
   },
-  "astra-xhigh": {
+  freshReviewer: {
     nativeRole: "fresh-reviewer",
-    model: CODEX_FRONTIER_AUTHORITY_MODEL,
-    effort: "xhigh",
+    model: CODEX_AUTHORITY_MODEL,
+    effort: CODEX_AUTHORITY_EFFORT,
   },
-  "astra-max": {
-    nativeRole: "fresh-reviewer",
-    model: CODEX_FRONTIER_AUTHORITY_MODEL,
-    effort: "max",
-  },
-  "sol-high-compat": {
-    nativeRole: "fresh-reviewer",
-    model: "gpt-5.6-sol",
-    effort: "high",
-  },
-} as const satisfies Record<string, CodexNativeRoleConfig>;
-
-export type CodexFreshReviewerProfileId = keyof typeof CODEX_FRESH_REVIEWER_PROFILES;
-
-export function isCodexAuthorityEffort(value: unknown): value is CodexAuthorityEffort {
-  return typeof value === "string" && (CODEX_AUTHORITY_EFFORTS as readonly string[]).includes(value);
-}
-
-export function isCodexFreshReviewerProfileId(value: unknown): value is CodexFreshReviewerProfileId {
-  return typeof value === "string" && Object.hasOwn(CODEX_FRESH_REVIEWER_PROFILES, value);
-}
-
-export function freshReviewerProfileForAuthorityEffort(effort: CodexAuthorityEffort): CodexFreshReviewerProfileId {
-  return `astra-${effort}` as CodexFreshReviewerProfileId;
-}
-
-export function authorityReviewerAgentNameForEffort(effort: CodexAuthorityEffort): string {
-  return `mandatemarshal_fresh_reviewer_astra_${effort}`;
-}
-
-export function freshReviewerRoleForProfile(profile: CodexFreshReviewerProfileId): CodexNativeRoleConfig {
-  if (!isCodexFreshReviewerProfileId(profile)) throw new Error(`CODEX_REVIEWER_PROFILE_INVALID:${String(profile)}`);
-  return { ...CODEX_FRESH_REVIEWER_PROFILES[profile] };
-}
-
-export function codexRoleMappingForAuthorityEffort(effort: CodexAuthorityEffort): CodexRoleMapping {
-  return {
-    parent: {
-      nativeRole: "parent",
-      model: CODEX_FRONTIER_AUTHORITY_MODEL,
-      effort,
-    },
-    routineImplementer: {
-      nativeRole: "routine-implementer",
-      model: "gpt-5.6-luna",
-      effort: "max",
-    },
-    complexImplementer: {
-      nativeRole: "complex-implementer",
-      model: "gpt-5.6-terra",
-      effort: "high",
-    },
-    freshReviewer: freshReviewerRoleForProfile(freshReviewerProfileForAuthorityEffort(effort)),
-  };
-}
-
-export const DEFAULT_CODEX_ROLE_MAPPING: CodexRoleMapping = codexRoleMappingForAuthorityEffort(DEFAULT_CODEX_AUTHORITY_EFFORT);
+};
 
 export function implementationRoleForLane(mapping: CodexRoleMapping, lane: ImplementationLane): CodexNativeRoleConfig {
   return lane === "routine-implementer" ? mapping.routineImplementer : mapping.complexImplementer;

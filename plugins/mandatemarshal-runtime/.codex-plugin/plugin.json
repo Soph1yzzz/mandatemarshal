@@ -11,7 +11,7 @@
     "qa",
     "multi-agent"
   ],
-  "skills": "./plugins/mandatemarshal-runtime/skills/",
+  "skills": "./skills/",
   "interface": {
     "displayName": "MandateMarshal",
     "shortDescription": "Autonomy without unintended authority",

@@ -24,10 +24,10 @@ Before delegation, the packet must include semantic routing/reason, objective, o
 
 Use semantic lanes. For the default Codex adapter:
 
-- settled routine implementation -> GPT-5.6 Luna / Max
-- material complexity -> GPT-5.6 Terra / High
+- every settled implementation starts on GPT-6 Luna / Max
+- GPT-6 Sol / High implementation is an explicit escalation lane only after Luna returns a concrete blocker
 
-Keep model names adapter-level. Reclassification requires explicit complexity evidence and a `LaneReclassified` event. An unavailable routine lane is a capability error, not permission to substitute the complex lane.
+Do not predictively route work to Sol because it appears difficult, broad, security-sensitive, or high-context. Reclassification requires an actual blocked Luna result, an explicit Parent decision, and a `LaneReclassified` event. An unavailable Luna lane is a capability error, not permission to substitute Sol.
 
 ## Verification
 
